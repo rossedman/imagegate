@@ -6,7 +6,7 @@ require (
 	github.com/distribution/reference v0.6.0
 	github.com/google/go-containerregistry v0.22.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
-	github.com/prometheus/client_golang v1.23.2
+	github.com/prometheus/client_golang v1.25.0
 	github.com/secure-systems-lab/go-securesystemslib v0.11.1
 	github.com/sigstore/protobuf-specs v0.5.2
 	github.com/sigstore/sigstore v1.11.0
@@ -66,9 +66,9 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.67.5 // indirect
-	github.com/prometheus/procfs v0.20.1 // indirect
+	github.com/prometheus/client_model v0.6.3 // indirect
+	github.com/prometheus/common v0.72.0 // indirect
+	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/sassoftware/relic v7.2.1+incompatible // indirect
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
 	github.com/sigstore/rekor v1.5.3 // indirect
@@ -86,12 +86,10 @@ require (
 	go.opentelemetry.io/otel v1.44.0 // indirect
 	go.opentelemetry.io/otel/metric v1.44.0 // indirect
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
-	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.59.0 // indirect
-	golang.org/x/oauth2 v0.37.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/term v0.46.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
