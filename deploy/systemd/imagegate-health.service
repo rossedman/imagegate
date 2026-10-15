@@ -1,0 +1,6 @@
+[Unit]
+Description=Check the imagegate plugin socket answers
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/imagegate health
