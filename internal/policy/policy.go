@@ -58,7 +58,7 @@ type Defaults struct {
 	FailClosed    *bool    `yaml:"failClosed"`
 	VerifyTimeout Duration `yaml:"verifyTimeout"`
 	Cache         Cache    `yaml:"cache"`
-	// HelpURL, when set, is printed in every denial as <HelpURL>#<REASON>.
+	// HelpURL, when set, is printed in every denial as <HelpURL>#<reason> (lowercase).
 	HelpURL string `yaml:"helpURL"`
 }
 

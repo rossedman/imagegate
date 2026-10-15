@@ -17,8 +17,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/rossedman/image-gate/internal/gate"
-	"github.com/rossedman/image-gate/internal/verdict"
+	"github.com/rossedman/imagegate/internal/gate"
+	"github.com/rossedman/imagegate/internal/verdict"
 )
 
 const contentType = "application/vnd.docker.plugins.v1+json"

@@ -12,7 +12,7 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	bolt "go.etcd.io/bbolt"
 
-	"github.com/rossedman/image-gate/internal/verdict"
+	"github.com/rossedman/imagegate/internal/verdict"
 )
 
 var (

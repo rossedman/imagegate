@@ -16,13 +16,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rossedman/image-gate/internal/audit"
-	"github.com/rossedman/image-gate/internal/cache"
-	"github.com/rossedman/image-gate/internal/docker"
-	"github.com/rossedman/image-gate/internal/metrics"
-	"github.com/rossedman/image-gate/internal/policy"
-	"github.com/rossedman/image-gate/internal/verdict"
-	"github.com/rossedman/image-gate/internal/verify"
+	"github.com/rossedman/imagegate/internal/audit"
+	"github.com/rossedman/imagegate/internal/cache"
+	"github.com/rossedman/imagegate/internal/docker"
+	"github.com/rossedman/imagegate/internal/metrics"
+	"github.com/rossedman/imagegate/internal/policy"
+	"github.com/rossedman/imagegate/internal/verdict"
+	"github.com/rossedman/imagegate/internal/verify"
 )
 
 const (
@@ -219,7 +219,7 @@ func TestDenialMessage(t *testing.T) {
 	d := h.create("ghcr.io/acme/bad:1")
 	want := "imagegate: denied ghcr.io/acme/bad@" + digestB + "\n" +
 		`reason: NO_SBOM — no SPDX or CycloneDX attestation signed by identity "ci-main"` + "\n" +
-		"fix: https://wiki.acme.internal/imagegate#NO_SBOM"
+		"fix: https://wiki.acme.internal/imagegate#no_sbom"
 	if d.Msg != want {
 		t.Errorf("message:\n%s\nwant:\n%s", d.Msg, want)
 	}

@@ -11,7 +11,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/rossedman/image-gate/internal/gate"
+	"github.com/rossedman/imagegate/internal/gate"
 )
 
 func TestClassify(t *testing.T) {

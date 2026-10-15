@@ -7,7 +7,7 @@ defaults:
   cache:
     allowTTL: 24h
     denyTTL: 60s
-  # Printed in every denial as <helpURL>#<REASON>; see docs/runbook.md.
+  # Printed in every denial as <helpURL>#<reason>; see docs/runbook.md.
   helpURL: https://wiki.acme.internal/imagegate
 
 trust:

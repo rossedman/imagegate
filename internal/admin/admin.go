@@ -13,7 +13,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/rossedman/image-gate/internal/verdict"
+	"github.com/rossedman/imagegate/internal/verdict"
 )
 
 // Gate is what the admin server needs from the decision engine.

@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      sigstore:
+        patterns: ["github.com/sigstore/*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: pip
+    directory: /docs
+    schedule:
+      interval: monthly

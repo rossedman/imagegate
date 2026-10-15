@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rossedman/image-gate/internal/verdict"
+	"github.com/rossedman/imagegate/internal/verdict"
 )
 
 func TestGetPutExpiry(t *testing.T) {
