@@ -1,7 +1,7 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: build test e2e docs docs-serve snapshot
+.PHONY: build test e2e docs docs-serve docs-contrast snapshot
 
 build:
 	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/imagegate ./cmd/imagegate
@@ -20,6 +20,11 @@ docs:
 
 docs-serve:
 	mkdocs serve
+
+# WCAG AA contrast on every page, both schemes, phone width (needs Node + Playwright).
+docs-contrast: docs
+	@cd site && python3 -m http.server 8799 >/dev/null 2>&1 & pid=$$!; sleep 1; \
+	node docs/tools/contrast-check.cjs http://127.0.0.1:8799/; rc=$$?; kill $$pid; exit $$rc
 
 # Local GoReleaser build of every artifact into dist/ (needs goreleaser,
 # syft, and docker buildx for images).
