@@ -1,0 +1,40 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Security issues: please use a private advisory instead (see SECURITY.md)."
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Include the denial message or audit record if there is one.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: Policy (redacted), image reference, commands.
+      render: shell
+  - type: input
+    id: version
+    attributes:
+      label: imagegate version
+      placeholder: imagegate version
+    validations:
+      required: true
+  - type: input
+    id: docker
+    attributes:
+      label: Docker version and image store
+      placeholder: "29.8.2, containerd image store"
+    validations:
+      required: true

@@ -44,7 +44,7 @@ Labels and environment variables are never accepted as overrides.
 
 ## Reason codes
 
-Each denial prints `fix: <helpURL>#<REASON>`; these are the anchors.
+Each denial prints `fix: <helpURL>#<reason>`; these are the anchors.
 
 ### NO_SIGNATURE
 No cosign signature for the image digest, or none that verifies. Sign the

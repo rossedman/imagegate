@@ -70,7 +70,9 @@ func Message(image string, r Reason, detail, helpURL string) string {
 		fmt.Fprintf(&b, "reason: %s\n", r)
 	}
 	if helpURL != "" {
-		fmt.Fprintf(&b, "fix: %s#%s", strings.TrimRight(helpURL, "#"), r)
+		// Lowercase: heading anchors on the docs site and GitHub are
+		// lowercase, and URL fragments are case-sensitive.
+		fmt.Fprintf(&b, "fix: %s#%s", strings.TrimRight(helpURL, "#"), strings.ToLower(string(r)))
 	} else {
 		fmt.Fprintf(&b, "fix: %s", fixes[r])
 	}

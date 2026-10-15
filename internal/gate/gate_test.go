@@ -219,7 +219,7 @@ func TestDenialMessage(t *testing.T) {
 	d := h.create("ghcr.io/acme/bad:1")
 	want := "imagegate: denied ghcr.io/acme/bad@" + digestB + "\n" +
 		`reason: NO_SBOM — no SPDX or CycloneDX attestation signed by identity "ci-main"` + "\n" +
-		"fix: https://wiki.acme.internal/imagegate#NO_SBOM"
+		"fix: https://wiki.acme.internal/imagegate#no_sbom"
 	if d.Msg != want {
 		t.Errorf("message:\n%s\nwant:\n%s", d.Msg, want)
 	}
