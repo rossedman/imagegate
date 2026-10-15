@@ -30,36 +30,17 @@ fix: https://wiki.acme.internal/imagegate#no_sbom
 
 ## How it works
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant C as docker run
-  participant D as dockerd
-  participant G as imagegate
-  participant R as registry
-  C->>D: POST /containers/create
-  D->>G: AuthZReq (every API call)
-  G->>D: inspect image → digest
-  G->>R: signatures + attestations for the digest
-  Note over G: verify with sigstore-go,<br/>cache the verdict
-  G-->>D: allow, or deny + reason
-  D-->>C: container, or the denial
-```
+<p align="center">
+  <img src="docs/assets/diagram-sequence.svg" alt="Sequence: docker run sends POST /containers/create to dockerd; dockerd asks imagegate (AuthZReq); imagegate inspects the image for its digest, fetches signatures and attestations from the registry, verifies them with sigstore-go, caches the verdict and answers allow or deny with a reason." width="100%">
+</p>
 
 Only `POST /containers/create`, `/start` and `/restart` are ever denied.
 Every other call passes, even when imagegate errors, so it can't lock you
 out of the daemon.
 
-```mermaid
-flowchart LR
-  ref["image ref"] --> digest["resolve digest<br/>(never a tag)"] --> rule{"first matching<br/>policy rule"}
-  rule -->|none| deny1["NO_RULE"]
-  rule --> sig{"cosign signature<br/>from allowed identity?"}
-  sig -->|no| deny2["NO_SIGNATURE /<br/>IDENTITY_MISMATCH"]
-  sig -->|yes| sbom{"signed SBOM<br/>for same digest?"}
-  sbom -->|no| deny3["NO_SBOM /<br/>SBOM_UNTRUSTED"]
-  sbom -->|yes| ok["ALLOWED · cached 24 h"]
-```
+<p align="center">
+  <img src="docs/assets/diagram-decision.svg" alt="Decision: image ref, resolve digest via dockerd, match the first rule, require a signature from an allowed identity, require a signed SBOM for the same digest, then ALLOWED and cached 24 hours. Denials: LOCAL_IMAGE, NO_RULE, NO_SIGNATURE or IDENTITY_MISMATCH, NO_SBOM or SBOM_UNTRUSTED." width="100%">
+</p>
 
 - **Verifies by digest.** Tags resolve through dockerd to the digest it will
   run, and start re-checks the container's actual image.
@@ -71,18 +52,27 @@ flowchart LR
 - **Built for rollout.** Audit mode, ticketed break-glass overrides that
   expire within 7 days, a JSON audit log and Prometheus metrics.
 
-## Quick start
+## Install
+
+Releases ship `.deb`, `.rpm` and `.apk` packages, archives and a container
+image for amd64, arm64, arm/v7, ppc64le and s390x, all with SBOMs and
+cosign signatures.
 
 ```sh
-make build && sudo install -m 0755 bin/imagegate /usr/local/bin/
-sudo install -d /etc/imagegate/overrides.d /etc/imagegate/registry
-sudo install -m 0644 deploy/policy.example.yaml /etc/imagegate/policy.yaml   # edit, keep mode: audit
-imagegate validate
-sudo install -m 0644 deploy/systemd/imagegate*.{service,timer} /etc/systemd/system/
-sudo systemctl enable --now imagegate imagegate-health.timer
-# add {"authorization-plugins": ["imagegate"]} to /etc/docker/daemon.json, then:
+# Debian / Ubuntu (rpm and apk work the same way)
+curl -fsSLO https://github.com/rossedman/imagegate/releases/download/v0.1.0/imagegate_0.1.0_amd64.deb
+sudo apt install ./imagegate_0.1.0_amd64.deb
+sudoedit /etc/imagegate/policy.yaml && imagegate validate   # starts in audit mode
+sudo systemctl start imagegate && imagegate health
+# then add {"authorization-plugins": ["imagegate"]} to /etc/docker/daemon.json:
 sudo systemctl restart docker
 ```
+
+Packages install a systemd service (deb, rpm) or an OpenRC service (apk),
+never edit `daemon.json`, and refuse removal while dockerd still enables the
+plugin (apk can only warn). The image is `ghcr.io/rossedman/imagegate`. See
+[Getting started](https://rossedman.github.io/imagegate/getting-started/)
+for every install method and how to verify a release.
 
 Then follow [Rolling out](https://rossedman.github.io/imagegate/rollout/)
 and [Signing in CI](https://rossedman.github.io/imagegate/signing/).

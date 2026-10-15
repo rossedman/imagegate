@@ -11,6 +11,7 @@ request. Read `README.md` for the overview and `docs/` for the full docs.
 make build        # bin/imagegate
 make test         # gofmt check, go vet, go test -race (run before every commit)
 make docs         # mkdocs build --strict (run when docs/ or mkdocs.yml change)
+make snapshot     # goreleaser: binaries, deb/rpm/apk, images into dist/ (needs goreleaser, syft)
 go test -run TestMatrix -v ./internal/verify    # the spec's fixture matrix
 sudo -E ./test/e2e/run.sh   # real dockerd + zot + cosign; needs root, dockerd, COSIGN
 ```
@@ -29,6 +30,7 @@ sudo -E ./test/e2e/run.sh   # real dockerd + zot + cosign; needs root, dockerd, 
 | `internal/{audit,metrics,admin,docker,imageref}` | Audit log, Prometheus, admin socket, dockerd client, reference parsing |
 | `test/e2e/run.sh` | End-to-end suite against a dedicated dockerd |
 | `docs/`, `mkdocs.yml` | Documentation site (MkDocs Material, deployed to GitHub Pages) |
+| `.goreleaser.yaml`, `packaging/` | Release build: packages (systemd and OpenRC), install scripts, container image |
 
 ## Invariants (never break these)
 

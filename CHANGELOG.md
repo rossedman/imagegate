@@ -18,3 +18,7 @@ uses [semantic versioning](https://semver.org/).
   JSON audit log and Prometheus metrics.
 - `serve`, `validate`, `warm`, `cache purge` and `health` commands, systemd
   units, runbook and documentation site.
+- GoReleaser releases: linux amd64, arm64, arm/v7, ppc64le and s390x
+  binaries; deb and rpm packages with systemd units, apk with an OpenRC
+  service; multi-arch images on ghcr.io; SBOMs; keyless cosign signatures.
+  Packages refuse removal while dockerd still enables the plugin.
