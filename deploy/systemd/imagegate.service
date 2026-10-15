@@ -1,0 +1,32 @@
+[Unit]
+Description=imagegate Docker authorization plugin (image signature and SBOM gate)
+Documentation=https://github.com/rossedman/image-gate
+# Start before dockerd so the plugin socket exists when dockerd activates it,
+# and keep running independently: restarting imagegate never touches dockerd.
+Before=docker.service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/imagegate serve
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=1
+# Audit records go to stdout and operational logs to stderr; both land in journald.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=imagegate
+RuntimeDirectory=imagegate
+StateDirectory=imagegate
+StateDirectoryMode=0700
+# imagegate needs root only to read root-owned policy, keys and overrides
+# and to own the plugin socket; it does not need capabilities.
+CapabilityBoundingSet=
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/run/docker/plugins /run/imagegate /var/lib/imagegate
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,43 @@
+apiVersion: imagegate.dev/v1
+mode: audit              # enforce | audit — roll out in audit first
+
+defaults:
+  failClosed: true
+  verifyTimeout: 10s
+  cache:
+    allowTTL: 24h
+    denyTTL: 60s
+  # Printed in every denial as <helpURL>#<REASON>; see docs/runbook.md.
+  helpURL: https://wiki.acme.internal/imagegate
+
+trust:
+  sigstore: public-good  # or a path to a private trusted_root.json
+  # requireSCT: false    # only for private Sigstore stacks without a CT log
+
+identities:
+  ci-main:
+    issuer: https://token.actions.githubusercontent.com
+    subjectRegExp: ^https://github\.com/acme/.+/\.github/workflows/release\.ya?ml@refs/heads/main$
+  vendor-key:
+    publicKey: /etc/imagegate/keys/vendor.pub
+
+localImages: deny        # deny | allow
+
+rules:
+  - name: internal
+    images: ["ghcr.io/acme/**", "registry.acme.internal/**"]
+    signature:
+      identities: [ci-main]
+    sbom:
+      required: true
+      identities: [ci-main]
+      predicateTypes:
+        - https://spdx.dev/Document
+        - https://cyclonedx.org/bom
+
+  - name: vetted-vendor
+    images: ["registry.vendor.example/agent"]
+    signature:
+      identities: [vendor-key]
+    sbom:
+      required: false

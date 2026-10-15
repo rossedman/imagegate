@@ -1,0 +1,9 @@
+[Unit]
+Description=Check the imagegate plugin socket every minute, independently of dockerd
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+
+[Install]
+WantedBy=timers.target
