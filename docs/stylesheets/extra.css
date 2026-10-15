@@ -40,7 +40,7 @@
   --md-code-hl-string-color: #a8d5b5;
   --md-code-hl-name-color: #d8e2ee;
   --md-code-hl-function-color: #d8e2ee;
-  --md-code-hl-comment-color: #6c839c;
+  --md-code-hl-comment-color: #8197ae;
   --md-code-hl-number-color: #d9b26a;
   --md-code-hl-constant-color: #d9b26a;
   --md-footer-bg-color: #0b1827;
@@ -58,13 +58,13 @@
   --ig-line: #1b3350;
   --ig-line-soft: rgba(27, 51, 80, 0.18);
   --ig-line-faint: rgba(27, 51, 80, 0.06);
-  --ig-dim: #5f7590;
+  --ig-dim: #4a5f77;
   --ig-text: #13263c;
   --ig-text-2: #3d5470;
-  --ig-accent: #9a7330;
+  --ig-accent: #85621f;
   --ig-link: #1f5fa6;
-  --ig-pass: #2f7a4c;
-  --ig-deny: #b1502d;
+  --ig-pass: #246340;
+  --ig-deny: #a1441f;
 
   --md-default-bg-color: var(--ig-bg);
   --md-default-fg-color: var(--ig-text);
@@ -81,16 +81,37 @@
   --md-code-bg-color: #e9edf2;
   --md-code-fg-color: #13263c;
   --md-code-hl-keyword-color: #1f5fa6;
-  --md-code-hl-string-color: #2f7a4c;
+  --md-code-hl-string-color: #246340;
   --md-code-hl-name-color: #13263c;
-  --md-code-hl-comment-color: #6b8099;
-  --md-code-hl-number-color: #9a7330;
+  --md-code-hl-comment-color: #526479;
+  --md-code-hl-number-color: #7a5a1f;
+  --md-code-hl-constant-color: #5a44c2;
+  --md-code-hl-function-color: #13263c;
   --md-footer-bg-color: #13263c;
   --md-footer-bg-color--dark: #0b1827;
   --md-admonition-bg-color: #f8fafc;
   --md-typeset-table-color: var(--ig-line-soft);
   --md-shadow-z1: none;
   --md-shadow-z2: none;
+}
+
+/* Material declares these on :root as var(--md-default-fg-color…), so they
+   resolve against its default light palette and are inherited already
+   resolved. Re-declare them inside each scheme so they use ours. */
+[data-md-color-scheme="blueprint"], [data-md-color-scheme="vellum"] {
+  --md-typeset-color: var(--md-default-fg-color);
+  --md-admonition-fg-color: var(--md-default-fg-color);
+  --md-code-hl-name-color: var(--md-code-fg-color);
+  --md-code-hl-variable-color: var(--md-code-fg-color);
+  --md-code-hl-generic-color: var(--md-code-fg-color);
+  --md-code-hl-operator-color: var(--md-default-fg-color--light);
+  --md-code-hl-punctuation-color: var(--md-default-fg-color--light);
+  --md-code-hl-special-color: var(--md-code-hl-number-color);
+  --md-mermaid-sequence-actorman-bg-color: var(--md-mermaid-label-bg-color);
+  --md-mermaid-sequence-actorman-line-color: var(--md-mermaid-edge-color);
+  --md-mermaid-sequence-box-bg-color: var(--md-mermaid-node-bg-color);
+  --md-mermaid-sequence-box-fg-color: var(--md-mermaid-edge-color);
+  --md-mermaid-sequence-loop-fg-color: var(--md-mermaid-edge-color);
 }
 
 /* drafting grid behind every page */
@@ -201,7 +222,7 @@ body {
 
 /* ---------- navigation ---------- */
 
-.md-nav__item--section > .md-nav__link, .md-nav__title {
+.md-nav__item--section > .md-nav__link, .md-nav--secondary > .md-nav__title {
   font-family: var(--ig-mono);
   font-size: 0.58rem !important;
   font-weight: 500 !important;
@@ -209,6 +230,8 @@ body {
   text-transform: uppercase;
   color: var(--ig-dim) !important;
 }
+/* Drawer titles sit on Material's tinted title bar: use the stronger tone. */
+.md-nav__item .md-nav__title { color: var(--md-default-fg-color--light); }
 .md-nav__link--active { color: var(--md-default-fg-color) !important; font-weight: 600; }
 .md-nav__link--active::before { content: "— "; color: var(--ig-accent); }
 

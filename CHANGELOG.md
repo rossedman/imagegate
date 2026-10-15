@@ -6,6 +6,13 @@ uses [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Docs site: code punctuation, plain values and console output rendered
+  near-black on the dark code background, and several greys in the light
+  scheme fell below WCAG AA. All text now meets AA in both schemes;
+  `make docs-contrast` checks it.
+
 ### Added
 
 - Identities guide: verified identities for Chainguard, Flux, Trivy,
