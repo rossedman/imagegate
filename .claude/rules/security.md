@@ -2,6 +2,8 @@
 paths:
   - "internal/**/*.go"
   - "cmd/**/*.go"
+  - "packaging/**"
+  - ".goreleaser.yaml"
 ---
 
 # Security rules
@@ -31,3 +33,7 @@ lockout.
 - **Never log secrets**: registry credentials, full certificates, tokens.
 - Overrides are digest-pinned, root-owned, ticketed and expire within 7 days.
   Never accept overrides from labels, environment variables or the request.
+- Package scripts (`packaging/scripts/`) must never edit
+  `/etc/docker/daemon.json`, and must refuse removal while it enables the
+  plugin. The shipped `packaging/policy.yaml` must stay valid (`imagegate
+  validate`) and in audit mode.

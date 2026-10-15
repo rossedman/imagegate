@@ -1,7 +1,7 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: build test e2e docs docs-serve
+.PHONY: build test e2e docs docs-serve snapshot
 
 build:
 	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/imagegate ./cmd/imagegate
@@ -20,3 +20,8 @@ docs:
 
 docs-serve:
 	mkdocs serve
+
+# Local GoReleaser build of every artifact into dist/ (needs goreleaser,
+# syft, and docker buildx for images).
+snapshot:
+	goreleaser release --snapshot --clean --skip=sign

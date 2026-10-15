@@ -67,8 +67,18 @@ Reference issues with `Fixes #123`.
 
 ## Releasing
 
-Maintainers tag `vX.Y.Z` on `main`; the release workflow builds Linux
-binaries and checksums and publishes a GitHub release.
+Releases are built by [GoReleaser](https://goreleaser.com) from
+`.goreleaser.yaml`: binaries and archives for linux amd64, arm64, arm/v7,
+ppc64le and s390x; deb, rpm (systemd) and apk (OpenRC) packages;
+multi-arch images on `ghcr.io/rossedman/imagegate`; SBOMs; and keyless
+cosign signatures for the checksums and images.
+
+```sh
+make snapshot    # full local build into dist/, no signing or publishing
+```
+
+Maintainers tag `vX.Y.Z` on `main` and push the tag; `release.yml` runs
+the tests and GoReleaser. Update `CHANGELOG.md` first.
 
 ## Code of conduct
 

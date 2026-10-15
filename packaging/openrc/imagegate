@@ -1,0 +1,32 @@
+#!/sbin/openrc-run
+# imagegate for OpenRC (Alpine). Starts before docker and is respawned by
+# supervise-daemon, because dockerd rejects every API call while an
+# enabled authorization plugin is down.
+
+name="imagegate"
+description="imagegate Docker authorization plugin"
+command="/usr/bin/imagegate"
+command_args="serve ${IMAGEGATE_OPTS}"
+supervisor="supervise-daemon"
+respawn_delay=1
+respawn_max=0
+output_log="/var/log/imagegate/audit.log"
+error_log="/var/log/imagegate/imagegate.log"
+extra_started_commands="reload"
+
+depend() {
+	need net
+	before docker
+}
+
+start_pre() {
+	checkpath -d -m 0755 /run/docker/plugins
+	checkpath -d -m 0700 /run/imagegate /var/lib/imagegate /var/log/imagegate
+	/usr/bin/imagegate validate >/dev/null || ewarn "policy is invalid; imagegate will deny container creates (NO_POLICY)"
+}
+
+reload() {
+	ebegin "Reloading ${name} policy and overrides"
+	supervise-daemon "${RC_SVCNAME}" --signal HUP
+	eend $?
+}

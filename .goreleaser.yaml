@@ -1,0 +1,175 @@
+# GoReleaser: binaries, archives, deb/rpm/apk packages, multi-arch container
+# images, checksums, SBOMs and cosign signatures. Release with a v* tag
+# (.github/workflows/release.yml). Try it locally:
+#   goreleaser release --snapshot --clean
+version: 2
+project_name: imagegate
+
+before:
+  hooks:
+    # Packages install the binary to /usr/bin; the units in deploy/ point
+    # at /usr/local/bin for manual installs.
+    - mkdir -p build/systemd
+    - sh -c 'for f in deploy/systemd/*; do sed "s#/usr/local/bin/imagegate#/usr/bin/imagegate#" "$f" > "build/systemd/$(basename "$f")"; done'
+
+builds:
+  - id: imagegate
+    main: ./cmd/imagegate
+    binary: imagegate
+    env: [CGO_ENABLED=0]
+    # dockerd authorization plugins are a Linux feature.
+    goos: [linux]
+    goarch: [amd64, arm64, arm, ppc64le, s390x]
+    goarm: ["7"]
+    flags: [-trimpath]
+    ldflags: ["-s -w -X main.version={{ .Version }}"]
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}"
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+      - deploy/**/*
+      - docs/runbook.md
+
+nfpms:
+  # deb and rpm: systemd. apk (Alpine): OpenRC. Shared fields via anchors.
+  - id: packages
+    formats: [deb, rpm]
+    <<: &nfpm_common
+      package_name: imagegate
+      file_name_template: "{{ .ConventionalFileName }}"
+      vendor: imagegate contributors
+      homepage: https://rossedman.github.io/imagegate/
+      maintainer: Ross Edman <https://github.com/rossedman>
+      description: |-
+        Docker authorization plugin that denies container creation unless the
+        image digest is cosign-signed by a trusted identity and carries a
+        signed SBOM attestation.
+      license: MIT
+      section: admin
+      bindir: /usr/bin
+      suggests: [docker-ce, docker.io, moby-engine]
+      scripts:
+        postinstall: packaging/scripts/postinstall.sh
+        preremove: packaging/scripts/preremove.sh
+        postremove: packaging/scripts/postremove.sh
+      rpm:
+        group: System Environment/Daemons
+    contents:
+      - src: build/systemd/imagegate.service
+        dst: /usr/lib/systemd/system/imagegate.service
+      - src: build/systemd/imagegate-health.service
+        dst: /usr/lib/systemd/system/imagegate-health.service
+      - src: build/systemd/imagegate-health.timer
+        dst: /usr/lib/systemd/system/imagegate-health.timer
+      - &policy
+        # Ships valid and in audit mode, so installing never blocks a
+        # container; config|noreplace keeps local edits across upgrades.
+        src: packaging/policy.yaml
+        dst: /etc/imagegate/policy.yaml
+        type: config|noreplace
+        file_info: { mode: 0644 }
+      - &overrides_dir { dst: /etc/imagegate/overrides.d, type: dir, file_info: { mode: 0755 } }
+      - &registry_dir { dst: /etc/imagegate/registry, type: dir, file_info: { mode: 0700 } }
+      - &keys_dir { dst: /etc/imagegate/keys, type: dir, file_info: { mode: 0755 } }
+      - &state_dir { dst: /var/lib/imagegate, type: dir, file_info: { mode: 0700 } }
+      - &daemon_json { src: deploy/daemon.json, dst: /usr/share/imagegate/daemon.json }
+      - &policy_example { src: deploy/policy.example.yaml, dst: /usr/share/imagegate/policy.example.yaml }
+      - &runbook { src: docs/runbook.md, dst: /usr/share/doc/imagegate/runbook.md }
+      - &license { src: LICENSE, dst: /usr/share/doc/imagegate/LICENSE }
+
+  - id: packages-apk
+    formats: [apk]
+    <<: *nfpm_common
+    contents:
+      - src: packaging/openrc/imagegate
+        dst: /etc/init.d/imagegate
+        file_info: { mode: 0755 }
+      - *policy
+      - *overrides_dir
+      - *registry_dir
+      - *keys_dir
+      - *state_dir
+      - *daemon_json
+      - *policy_example
+      - *runbook
+      - *license
+
+dockers_v2:
+  - id: image
+    ids: [imagegate]
+    dockerfile: packaging/Dockerfile
+    images:
+      - ghcr.io/rossedman/imagegate
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .Prerelease }}{{ .Major }}.{{ .Minor }}{{ end }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+      - linux/arm/v7
+      - linux/ppc64le
+      - linux/s390x
+    labels:
+      org.opencontainers.image.title: imagegate
+      org.opencontainers.image.description: Docker authorization plugin for image signatures and SBOMs
+      org.opencontainers.image.source: https://github.com/rossedman/imagegate
+      org.opencontainers.image.url: https://rossedman.github.io/imagegate/
+      org.opencontainers.image.licenses: MIT
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.created: "{{ .CommitDate }}"
+    sbom: true
+
+checksum:
+  name_template: checksums.txt
+
+sboms:
+  - id: archives
+    artifacts: archive
+  - id: packages
+    artifacts: package
+
+# Keyless signing in GitHub Actions (id-token: write). The bundle carries
+# the signature, certificate and Rekor proof:
+#   cosign verify-blob --bundle checksums.txt.sigstore.json \
+#     --certificate-identity-regexp '^https://github.com/rossedman/imagegate/' \
+#     --certificate-oidc-issuer https://token.actions.githubusercontent.com checksums.txt
+signs:
+  - id: checksums
+    cmd: cosign
+    artifacts: checksum
+    signature: "${artifact}.sigstore.json"
+    args: ["sign-blob", "--bundle=${signature}", "${artifact}", "--yes"]
+    output: true
+
+# artifacts left empty: that selects images built by dockers_v2
+# ("manifests" would match nothing here).
+docker_signs:
+  - id: images
+    cmd: cosign
+    args: ["sign", "${artifact}@${digest}", "--yes"]
+    output: true
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude: ["^docs:", "^test:", "^ci:", "Merge pull request"]
+
+release:
+  github:
+    owner: rossedman
+    name: imagegate
+  prerelease: auto
+  footer: |
+    **Install:** packages (`.deb`, `.rpm`, `.apk`) install a systemd unit and an
+    audit-mode policy; read the [runbook](https://rossedman.github.io/imagegate/runbook/)
+    before enabling the plugin in dockerd. Container image:
+    `ghcr.io/rossedman/imagegate:{{ .Version }}`.
