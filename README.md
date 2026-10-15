@@ -6,7 +6,8 @@
   <a href="https://github.com/rossedman/imagegate/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/rossedman/imagegate/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://rossedman.github.io/imagegate/"><img alt="Docs" src="https://img.shields.io/badge/docs-rossedman.github.io-13263c"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-13263c"></a>
-  <img alt="Go version" src="https://img.shields.io/github/go-mod/go-version/rossedman/imagegate?color=13263c">
+  <a href="https://github.com/rossedman/imagegate/releases"><img alt="Release" src="https://img.shields.io/github/v/release/rossedman/imagegate?color=13263c&include_prereleases"></a>
+  <a href="https://pkg.go.dev/github.com/rossedman/imagegate"><img alt="Go Reference" src="https://pkg.go.dev/badge/github.com/rossedman/imagegate.svg"></a>
 </p>
 
 **imagegate** is a Docker authorization plugin. It denies container creation
@@ -25,6 +26,7 @@ fix: https://wiki.acme.internal/imagegate#no_sbom
 **[Documentation](https://rossedman.github.io/imagegate/)** ·
 [Getting started](https://rossedman.github.io/imagegate/getting-started/) ·
 [Policy reference](https://rossedman.github.io/imagegate/policy/) ·
+[Identities](https://rossedman.github.io/imagegate/identities/) ·
 [Runbook](https://rossedman.github.io/imagegate/runbook/) ·
 [Security model](https://rossedman.github.io/imagegate/security/)
 
@@ -97,6 +99,25 @@ rules:
     signature: { identities: [ci-main] }
     sbom:      { identities: [ci-main] }
 ```
+
+Identities for other signers, all checked against their public images:
+
+```yaml
+identities:
+  chainguard:          # GitHub Actions; also signs SPDX attestations
+    issuer: https://token.actions.githubusercontent.com
+    subject: https://github.com/chainguard-images/images/.github/workflows/release.yaml@refs/heads/main
+  kubernetes:          # registry.k8s.io, a Google service account
+    issuer: https://accounts.google.com
+    subject: krel-trust@k8s-releng-prod.iam.gserviceaccount.com
+  gitlab-main:         # GitLab CI on gitlab.com (format from Fulcio's docs)
+    issuer: https://gitlab.com
+    subject: https://gitlab.com/acme/api//.gitlab-ci.yml@refs/heads/main
+```
+
+See [Identities](https://rossedman.github.io/imagegate/identities/) for
+Flux, Trivy, distroless, Buildkite, CircleCI, Kubernetes workloads, KMS keys
+and how to find who signed any image.
 
 ## Status
 

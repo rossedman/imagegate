@@ -68,6 +68,10 @@ Anchor the regex (`^…$`), pin the organisation, the workflow file and the
 branch. A fork's workflow, another branch, or a personal key then fails
 with `IDENTITY_MISMATCH`, and the denial names the actual signer.
 
+Using GitLab, Buildkite, CircleCI or Google Cloud instead? See
+[Identities](identities.md#your-own-ci) for each provider's issuer and
+subject.
+
 ## Keyed signing
 
 For CI without OIDC, use a key pair and list the public key:
