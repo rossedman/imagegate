@@ -16,13 +16,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rossedman/image-gate/internal/audit"
-	"github.com/rossedman/image-gate/internal/cache"
-	"github.com/rossedman/image-gate/internal/docker"
-	"github.com/rossedman/image-gate/internal/metrics"
-	"github.com/rossedman/image-gate/internal/policy"
-	"github.com/rossedman/image-gate/internal/verdict"
-	"github.com/rossedman/image-gate/internal/verify"
+	"github.com/rossedman/imagegate/internal/audit"
+	"github.com/rossedman/imagegate/internal/cache"
+	"github.com/rossedman/imagegate/internal/docker"
+	"github.com/rossedman/imagegate/internal/metrics"
+	"github.com/rossedman/imagegate/internal/policy"
+	"github.com/rossedman/imagegate/internal/verdict"
+	"github.com/rossedman/imagegate/internal/verify"
 )
 
 const (

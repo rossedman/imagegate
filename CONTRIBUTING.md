@@ -6,7 +6,7 @@ safely. This guide covers how to build, test and send changes.
 
 ## Ground rules
 
-- **Security issues go to [SECURITY.md](https://github.com/rossedman/image-gate/blob/main/SECURITY.md), not the issue tracker.**
+- **Security issues go to [SECURITY.md](https://github.com/rossedman/imagegate/blob/main/SECURITY.md), not the issue tracker.**
 - Open an issue before large changes (new endpoints, policy schema changes,
   new verification paths) so the design can be agreed first.
 - Every change that affects a verdict needs a test that fails without it.
@@ -17,8 +17,8 @@ safely. This guide covers how to build, test and send changes.
 You need Go (the version in `go.mod`; the toolchain downloads it if needed).
 
 ```sh
-git clone https://github.com/rossedman/image-gate
-cd image-gate
+git clone https://github.com/rossedman/imagegate
+cd imagegate
 make build      # bin/imagegate
 make test       # gofmt check, go vet, go test -race
 ```
@@ -72,4 +72,4 @@ binaries and checksums and publishes a GitHub release.
 
 ## Code of conduct
 
-This project follows the [Code of Conduct](https://github.com/rossedman/image-gate/blob/main/CODE_OF_CONDUCT.md).
+This project follows the [Code of Conduct](https://github.com/rossedman/imagegate/blob/main/CODE_OF_CONDUCT.md).

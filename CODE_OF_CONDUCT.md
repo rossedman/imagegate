@@ -8,7 +8,7 @@ and do not harass anyone, in any form, in any project space.
 ## Reporting
 
 Report unacceptable behaviour privately to the maintainers through a
-[private security advisory](https://github.com/rossedman/image-gate/security/advisories/new)
+[private security advisory](https://github.com/rossedman/imagegate/security/advisories/new)
 marked "Code of conduct", or by contacting
 [@rossedman](https://github.com/rossedman) directly. Reports are handled
 confidentially. Maintainers may remove content and restrict participation

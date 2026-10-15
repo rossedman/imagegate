@@ -61,5 +61,5 @@ what an image gate can see.
 
 ## Reporting vulnerabilities
 
-See [SECURITY.md](https://github.com/rossedman/image-gate/blob/main/SECURITY.md).
+See [SECURITY.md](https://github.com/rossedman/imagegate/blob/main/SECURITY.md).
 Report privately through GitHub security advisories, not issues.

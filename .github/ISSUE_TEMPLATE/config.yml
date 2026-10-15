@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Report a security vulnerability
-    url: https://github.com/rossedman/image-gate/security/advisories/new
+    url: https://github.com/rossedman/imagegate/security/advisories/new
     about: Please report vulnerabilities privately, not as issues.
   - name: Documentation
-    url: https://rossedman.github.io/image-gate/
+    url: https://rossedman.github.io/imagegate/
     about: Installation, policy reference and runbook.

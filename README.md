@@ -3,10 +3,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/rossedman/image-gate/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/rossedman/image-gate/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://rossedman.github.io/image-gate/"><img alt="Docs" src="https://img.shields.io/badge/docs-rossedman.github.io-13263c"></a>
+  <a href="https://github.com/rossedman/imagegate/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/rossedman/imagegate/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://rossedman.github.io/imagegate/"><img alt="Docs" src="https://img.shields.io/badge/docs-rossedman.github.io-13263c"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-13263c"></a>
-  <img alt="Go version" src="https://img.shields.io/github/go-mod/go-version/rossedman/image-gate?color=13263c">
+  <img alt="Go version" src="https://img.shields.io/github/go-mod/go-version/rossedman/imagegate?color=13263c">
 </p>
 
 **imagegate** is a Docker authorization plugin. It denies container creation
@@ -22,11 +22,11 @@ reason: NO_SBOM — no SPDX or CycloneDX attestation signed by identity "ci-main
 fix: https://wiki.acme.internal/imagegate#no_sbom
 ```
 
-**[Documentation](https://rossedman.github.io/image-gate/)** ·
-[Getting started](https://rossedman.github.io/image-gate/getting-started/) ·
-[Policy reference](https://rossedman.github.io/image-gate/policy/) ·
-[Runbook](https://rossedman.github.io/image-gate/runbook/) ·
-[Security model](https://rossedman.github.io/image-gate/security/)
+**[Documentation](https://rossedman.github.io/imagegate/)** ·
+[Getting started](https://rossedman.github.io/imagegate/getting-started/) ·
+[Policy reference](https://rossedman.github.io/imagegate/policy/) ·
+[Runbook](https://rossedman.github.io/imagegate/runbook/) ·
+[Security model](https://rossedman.github.io/imagegate/security/)
 
 ## How it works
 
@@ -84,8 +84,8 @@ sudo systemctl enable --now imagegate imagegate-health.timer
 sudo systemctl restart docker
 ```
 
-Then follow [Rolling out](https://rossedman.github.io/image-gate/rollout/)
-and [Signing in CI](https://rossedman.github.io/image-gate/signing/).
+Then follow [Rolling out](https://rossedman.github.io/imagegate/rollout/)
+and [Signing in CI](https://rossedman.github.io/imagegate/signing/).
 
 > [!WARNING]
 > A dead authorization plugin makes dockerd reject every API call. Read the
@@ -114,7 +114,7 @@ imagegate is new and pre-1.0. It has unit tests for the full verification
 matrix (keyless and keyed, both cosign layouts, multi-platform images,
 tampered and replayed signatures) and an end-to-end suite against a real
 dockerd, a zot registry and cosign v2 and v3. Read the
-[security model](https://rossedman.github.io/image-gate/security/) for what
+[security model](https://rossedman.github.io/imagegate/security/) for what
 it does not cover: it proves where an image came from, not what a container
 may do.
 

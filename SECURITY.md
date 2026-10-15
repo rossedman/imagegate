@@ -6,7 +6,7 @@ crash can lock operators out of dockerd. We take reports seriously.
 ## Reporting a vulnerability
 
 **Do not open a public issue.** Report privately through GitHub:
-[Security → Report a vulnerability](https://github.com/rossedman/image-gate/security/advisories/new).
+[Security → Report a vulnerability](https://github.com/rossedman/imagegate/security/advisories/new).
 
 Include:
 
@@ -26,7 +26,7 @@ image the policy should deny, or that makes imagegate deny or crash in a way
 that blocks the Docker API.
 
 Known, documented limitations are not vulnerabilities on their own; see
-[the security model](https://rossedman.github.io/image-gate/security/). They
+[the security model](https://rossedman.github.io/imagegate/security/). They
 include users who already have full Docker API access using
 `--privileged`, Swarm services, builds or plugins, and anyone with root on
 the host.

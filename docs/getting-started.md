@@ -23,14 +23,14 @@ audit mode so nothing breaks while you look.
     ```sh
     VERSION=v0.1.0   # see the releases page
     curl -fsSLo /usr/local/bin/imagegate \
-      https://github.com/rossedman/image-gate/releases/download/$VERSION/imagegate-linux-amd64
+      https://github.com/rossedman/imagegate/releases/download/$VERSION/imagegate-linux-amd64
     chmod 0755 /usr/local/bin/imagegate
     ```
 
 === "From source"
 
     ```sh
-    git clone https://github.com/rossedman/image-gate && cd image-gate
+    git clone https://github.com/rossedman/imagegate && cd imagegate
     make build
     install -m 0755 bin/imagegate /usr/local/bin/imagegate
     ```
@@ -40,7 +40,7 @@ audit mode so nothing breaks while you look.
 ```sh
 install -d -m 0755 /etc/imagegate /etc/imagegate/overrides.d /etc/imagegate/registry
 curl -fsSLo /etc/imagegate/policy.yaml \
-  https://raw.githubusercontent.com/rossedman/image-gate/main/deploy/policy.example.yaml
+  https://raw.githubusercontent.com/rossedman/imagegate/main/deploy/policy.example.yaml
 ```
 
 Edit the identities and rules for your registries, keep `mode: audit`, and
@@ -61,7 +61,7 @@ imagegate never uses a user's own credentials.
 ## Run imagegate under systemd
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/rossedman/image-gate/main/deploy/systemd/imagegate.service \
+curl -fsSL https://raw.githubusercontent.com/rossedman/imagegate/main/deploy/systemd/imagegate.service \
   -o /etc/systemd/system/imagegate.service
 systemctl daemon-reload
 systemctl enable --now imagegate

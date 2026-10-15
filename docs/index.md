@@ -14,7 +14,7 @@ hide:
 <div class="ig-actions">
 <a class="ig-btn ig-btn--primary" href="getting-started/">Get started</a>
 <a class="ig-btn" href="how-it-works/">How it works</a>
-<a class="ig-btn" href="https://github.com/rossedman/image-gate">GitHub</a>
+<a class="ig-btn" href="https://github.com/rossedman/imagegate">GitHub</a>
 </div>
 </div>
 <div class="ig-drawing">

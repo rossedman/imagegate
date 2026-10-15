@@ -1,6 +1,6 @@
 [Unit]
 Description=imagegate Docker authorization plugin (image signature and SBOM gate)
-Documentation=https://github.com/rossedman/image-gate
+Documentation=https://github.com/rossedman/imagegate
 # Start before dockerd so the plugin socket exists when dockerd activates it,
 # and keep running independently: restarting imagegate never touches dockerd.
 Before=docker.service

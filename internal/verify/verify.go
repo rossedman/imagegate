@@ -27,9 +27,9 @@ import (
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
 
-	"github.com/rossedman/image-gate/internal/imageref"
-	"github.com/rossedman/image-gate/internal/policy"
-	"github.com/rossedman/image-gate/internal/verdict"
+	"github.com/rossedman/imagegate/internal/imageref"
+	"github.com/rossedman/imagegate/internal/policy"
+	"github.com/rossedman/imagegate/internal/verdict"
 )
 
 // CosignSignPredicate is the in-toto predicate type cosign uses for image

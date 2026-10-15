@@ -1,8 +1,8 @@
 site_name: imagegate
 site_description: Docker authorization plugin that only lets cosign-signed images with signed SBOMs run.
-site_url: https://rossedman.github.io/image-gate/
-repo_url: https://github.com/rossedman/image-gate
-repo_name: rossedman/image-gate
+site_url: https://rossedman.github.io/imagegate/
+repo_url: https://github.com/rossedman/imagegate
+repo_name: rossedman/imagegate
 edit_uri: edit/main/docs/
 copyright: MIT licensed · imagegate contributors
 
@@ -95,4 +95,4 @@ extra:
   generator: false
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/rossedman/image-gate
+      link: https://github.com/rossedman/imagegate

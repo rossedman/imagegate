@@ -1,4 +1,4 @@
-module github.com/rossedman/image-gate
+module github.com/rossedman/imagegate
 
 go 1.26.0
 

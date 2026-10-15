@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rossedman/image-gate/internal/policy"
-	"github.com/rossedman/image-gate/internal/verdict"
+	"github.com/rossedman/imagegate/internal/policy"
+	"github.com/rossedman/imagegate/internal/verdict"
 )
 
 func testPolicy(t *testing.T, w *world, extra string) *policy.Policy {
