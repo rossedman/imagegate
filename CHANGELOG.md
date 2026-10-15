@@ -8,6 +8,10 @@ uses [semantic versioning](https://semver.org/).
 
 ### Added
 
+- Identities guide: verified identities for Chainguard, Flux, Trivy,
+  distroless, Kubernetes and Sigstore images; subject formats for GitLab,
+  Buildkite, CircleCI, Codefresh, Google Cloud, Kubernetes workloads and
+  people; KMS keys; and how to discover an image's signer with `warm`.
 - Docker authorization plugin that gates container create, start and
   restart on a cosign signature and a signed SBOM attestation.
 - Verification of Sigstore bundles via OCI referrers (cosign v3) and legacy

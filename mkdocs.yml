@@ -79,6 +79,7 @@ nav:
       - Getting started: getting-started.md
       - How it works: how-it-works.md
       - Signing in CI: signing.md
+      - Identities: identities.md
       - Rolling out: rollout.md
   - Reference:
       - Policy: policy.md

@@ -62,6 +62,11 @@ Each identity is keyless or keyed, not both.
       publicKey: /etc/imagegate/keys/vendor.pub   # PEM; ECDSA, RSA or Ed25519
     ```
 
+See [Identities](identities.md) for verified examples from Chainguard, Flux,
+Trivy, distroless and Kubernetes, subject formats for GitLab, Buildkite,
+CircleCI, Google Cloud and Kubernetes, KMS keys, and how to find who signed
+an image.
+
 ## rules
 
 | Field | Default | Meaning |
