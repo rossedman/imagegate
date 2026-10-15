@@ -32,6 +32,17 @@ func TestClassify(t *testing.T) {
 		{"POST", "/v1.47/containers/abc/stop", passThrough, "", ""},
 		{"POST", "/v1.47/images/create?fromImage=nginx", passThrough, "", ""},
 		{"POST", "/v1.47/containers/abc/exec", passThrough, "", ""},
+		// dockerd accepts any [0-9.]+ version and names containing "/".
+		{"POST", "/v1.45.0/containers/create", create, "containers/create", ""},
+		{"POST", "/v1.45.0.1/containers/abc/start", start, "containers/start", "abc"},
+		{"POST", "/v1/containers/create", create, "containers/create", ""},
+		{"POST", "/v1.45/containers/web/db/start", start, "containers/start", "web/db"},
+		{"POST", "/v1.45/containers/web/db/restart", start, "containers/restart", "web/db"},
+		{"post", "/v1.45/containers/create", create, "containers/create", ""},
+		{"POST", "/v1.45/containers/create/", create, "containers/create", ""},
+		{"POST", "/vx/containers/create", unrecognized, "", ""},
+		{"POST", "/foo/containers/create", unrecognized, "", ""},
+		{"POST", "/v1.45/containers/start", passThrough, "", ""},
 	}
 	for _, c := range cases {
 		kind, endpoint, id, _ := Classify(c.method, c.uri)

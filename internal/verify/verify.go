@@ -21,7 +21,6 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/sigstore/sigstore-go/pkg/root"
 	sgverify "github.com/sigstore/sigstore-go/pkg/verify"
@@ -41,10 +40,11 @@ const CosignSignPredicate = "https://sigstore.dev/cosign/sign/v1"
 type Target struct {
 	// Repo is the normalized repository, e.g. ghcr.io/acme/api.
 	Repo string
-	// Digest is the manifest (or index) digest.
+	// Digest is the manifest or index digest dockerd resolved. Signatures
+	// and SBOMs must be on exactly this digest: accepting one on a
+	// platform child would make the verdict depend on which child is
+	// selected, and imagegate cannot see which child dockerd runs.
 	Digest string
-	// Platform selects the platform manifest when Digest is an index.
-	Platform *v1.Platform
 }
 
 // Result is the outcome of verifying one target against one rule.
@@ -164,7 +164,7 @@ func (v *Verifier) Verify(ctx context.Context, t Target, rule *policy.Rule) (res
 	}
 
 	start := time.Now()
-	subjects, buildkitSBOM, err := v.e.reg.subjects(ctx, repo, t.Digest, t.Platform, rule.SBOM.PredicateTypes)
+	unsignedSBOM, err := v.e.reg.unsignedBuildKitSBOM(ctx, repo, t.Digest, rule.SBOM.PredicateTypes)
 	if err != nil {
 		if isNotFound(err) {
 			// With the containerd image store, local builds and loads get
@@ -172,19 +172,16 @@ func (v *Verifier) Verify(ctx context.Context, t Target, rule *policy.Rule) (res
 			// is what marks them as local.
 			return Result{Reason: verdict.LocalImage, Detail: fmt.Sprintf("digest is not in registry repository %s (built, loaded or committed locally)", t.Repo)}
 		}
-		return Result{Reason: verdict.UpstreamUnavailable, Detail: "registry: " + oneLine(err)}
+		return registryFailure(err)
 	}
-	var cands []candidate
-	unsignedSBOM := buildkitSBOM
-	for _, s := range subjects {
-		f, err := v.e.reg.find(ctx, repo, s)
-		if err != nil {
-			return Result{Reason: verdict.UpstreamUnavailable, Detail: "registry: " + oneLine(err)}
-		}
-		unsignedSBOM = unsignedSBOM || f.unsignedSBOM
-		for _, e := range f.entities {
-			cands = append(cands, candidate{entity: e, subject: s})
-		}
+	f, err := v.e.reg.find(ctx, repo, t.Digest)
+	if err != nil {
+		return registryFailure(err)
+	}
+	unsignedSBOM = unsignedSBOM || f.unsignedSBOM
+	cands := make([]candidate, 0, len(f.entities))
+	for _, e := range f.entities {
+		cands = append(cands, candidate{entity: e, subject: t.Digest})
 	}
 	res.Stages["resolve"] = time.Since(start)
 
@@ -232,6 +229,16 @@ func (v *Verifier) Verify(ctx context.Context, t Target, rule *policy.Rule) (res
 		res.Detail = fmt.Sprintf("no SPDX or CycloneDX attestation signed by %s", quoteList(rule.SBOM.Identities))
 	}
 	return res
+}
+
+// registryFailure maps a registry error to a verdict. Only network errors,
+// timeouts, 5xx, 429 and auth failures mean "could not check" (subject to
+// failClosed); anything else, such as a malformed response, denies.
+func registryFailure(err error) Result {
+	if isTransient(err) {
+		return Result{Reason: verdict.UpstreamUnavailable, Detail: "registry: " + oneLine(err)}
+	}
+	return Result{Reason: verdict.NoSignature, Detail: "registry returned an invalid response: " + oneLine(err)}
 }
 
 // isSignature selects image signatures: legacy simplesigning payloads

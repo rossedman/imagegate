@@ -168,6 +168,7 @@ identities:
 		"digest in glob":      base + "rules: [{name: r, images: [\"x/y@sha256:00\"], signature: {identities: [k]}, sbom: {required: false}}]",
 		"duplicate rule":      base + "rules: [{name: r, images: [x], signature: {identities: [k]}, sbom: {required: false}}, {name: r, images: [y], signature: {identities: [k]}, sbom: {required: false}}]",
 		"bad mode":            strings.Replace(base, "identities:", "mode: off\nidentities:", 1) + "rules: [{name: r, images: [x], signature: {identities: [k]}, sbom: {required: false}}]",
+		"timeout too long":    strings.Replace(base, "identities:", "defaults: {verifyTimeout: 60s}\nidentities:", 1) + "rules: [{name: r, images: [x], signature: {identities: [k]}, sbom: {required: false}}]",
 		"bad duration":        strings.Replace(base, "identities:", "defaults: {verifyTimeout: soon}\nidentities:", 1),
 		"unknown field":       strings.Replace(base, "identities:", "mod: audit\nidentities:", 1),
 		"keyless without san": "apiVersion: imagegate.dev/v1\nidentities: {c: {issuer: https://x}}\nrules: [{name: r, images: [x], signature: {identities: [c]}, sbom: {required: false}}]",
@@ -252,5 +253,26 @@ func TestOverrides(t *testing.T) {
 	empty, err := LoadOverrides(filepath.Join(dir, "missing"), now)
 	if err != nil || empty.Active(now) != 0 {
 		t.Errorf("missing dir: %v", err)
+	}
+}
+
+// Replacing a public key at the same path changes the policy hash.
+func TestHashIncludesKeyFiles(t *testing.T) {
+	dir := t.TempDir()
+	key := filepath.Join(dir, "k.pub")
+	pol := filepath.Join(dir, "policy.yaml")
+	os.WriteFile(key, []byte("key one"), 0o644)
+	os.WriteFile(pol, []byte("apiVersion: imagegate.dev/v1\nidentities: {k: {publicKey: "+key+"}}\nrules: [{name: r, images: [x], signature: {identities: [k]}, sbom: {required: false}}]\n"), 0o644)
+	a, err := Load(pol)
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(key, []byte("key two"), 0o644)
+	b, err := Load(pol)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.Hash == b.Hash {
+		t.Error("key rotation at the same path did not change the hash")
 	}
 }

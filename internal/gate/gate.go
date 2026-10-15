@@ -12,7 +12,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"golang.org/x/sync/singleflight"
 
 	"github.com/rossedman/image-gate/internal/audit"
@@ -134,7 +133,6 @@ type input struct {
 	image    string // as the client wrote it, for the audit record
 	repo     string
 	digest   string
-	platform *v1.Platform
 	start    time.Time
 }
 
@@ -160,11 +158,6 @@ func (g *Gate) Create(ctx context.Context, user string, body []byte, query url.V
 	if _, err := imageref.Parse(req.Image); err != nil && !imageref.LooksLikeID(req.Image) {
 		return g.early(st, in, verdict.BadRequest, "invalid image reference")
 	}
-	platform, err := parsePlatform(query.Get("platform"))
-	if err != nil {
-		return g.early(st, in, verdict.BadRequest, err.Error())
-	}
-
 	img, err := g.cfg.Docker.InspectImage(ctx, req.Image)
 	if errors.Is(err, docker.ErrNotFound) {
 		// The image is not present yet. dockerd will answer "No such
@@ -178,10 +171,6 @@ func (g *Gate) Create(ctx context.Context, user string, body []byte, query url.V
 		g.cfg.Metrics.UpstreamErrors.WithLabelValues("dockerd").Inc()
 		return g.early(st, in, verdict.UpstreamUnavailable, "inspect image: "+err.Error())
 	}
-	if platform == nil {
-		platform = &v1.Platform{OS: img.Os, Architecture: img.Architecture, Variant: img.Variant}
-	}
-	in.platform = platform
 	return g.resolved(ctx, st, in, req.Image, img, true)
 }
 
@@ -193,7 +182,9 @@ func (g *Gate) Start(ctx context.Context, user, endpoint, containerID string) De
 	t0 := time.Now()
 	st := g.state.Load()
 	if st == nil {
-		return g.noPolicy(endpoint, user)
+		// Spec: an invalid policy at boot denies creates and allows every
+		// other call, so infrastructure containers can still be started.
+		return Decision{Allow: true}
 	}
 	ct, err := g.cfg.Docker.InspectContainer(ctx, containerID)
 	in := input{endpoint: endpoint, user: user, image: containerID, start: t0}
@@ -220,7 +211,6 @@ func (g *Gate) Start(ctx context.Context, user, endpoint, containerID string) De
 		g.cfg.Metrics.UpstreamErrors.WithLabelValues("dockerd").Inc()
 		return g.early(st, in, verdict.UpstreamUnavailable, "inspect image: "+err.Error())
 	}
-	in.platform = &v1.Platform{OS: img.Os, Architecture: img.Architecture, Variant: img.Variant}
 	return g.resolved(ctx, st, in, ct.Config.Image, img, false)
 }
 
@@ -307,14 +297,24 @@ func (g *Gate) evaluateVerdict(ctx context.Context, st *state, in input) (Decisi
 		v := verdict.Verdict{Reason: verdict.NoRule, Detail: fmt.Sprintf("no policy rule matches %s", in.repo)}
 		return g.finish(st, in, v, "miss"), v
 	}
-	v := g.verifyShared(st, key, verify.Target{Repo: in.repo, Digest: in.digest, Platform: in.platform}, rule)
+	v := g.verifyShared(st, key, verify.Target{Repo: in.repo, Digest: in.digest}, rule)
 	return g.finish(st, in, v, "miss"), v
 }
 
 // verifyShared runs one verification per key no matter how many requests
 // ask for it concurrently.
 func (g *Gate) verifyShared(st *state, key cache.Key, t verify.Target, rule *policy.Rule) verdict.Verdict {
-	ch := g.sf.DoChan(key.String(), func() (any, error) {
+	ch := g.sf.DoChan(key.String(), func() (val any, err error) {
+		// singleflight re-panics a panicking function in a new goroutine,
+		// which would kill the process and lock dockerd out. Verification
+		// parses registry-controlled data, so turn panics into a verdict.
+		defer func() {
+			if p := recover(); p != nil {
+				g.cfg.Log.Error("panic during verification", "repo", t.Repo, "digest", t.Digest, "panic", p)
+				val = verdict.Verdict{Reason: verdict.UpstreamUnavailable, Rule: rule.Name, Detail: "internal error in imagegate"}
+				err = nil
+			}
+		}()
 		// Not tied to any one request: the result is shared and cached.
 		ctx, cancel := context.WithTimeout(context.Background(), st.policy.Defaults.VerifyTimeout.D())
 		defer cancel()
@@ -442,17 +442,6 @@ func (g *Gate) Warm(ctx context.Context, ref string) (verdict.Verdict, string, e
 
 // PurgeCache drops cached verdicts, all or for one digest.
 func (g *Gate) PurgeCache(digest string) (int, error) { return g.cfg.Cache.Purge(digest) }
-
-func parsePlatform(s string) (*v1.Platform, error) {
-	if s == "" {
-		return nil, nil
-	}
-	p, err := v1.ParsePlatform(s)
-	if err != nil {
-		return nil, fmt.Errorf("invalid platform %q", s)
-	}
-	return p, nil
-}
 
 func latencyMs(start time.Time) int64 {
 	if start.IsZero() {

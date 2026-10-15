@@ -10,8 +10,6 @@ import (
 	"testing"
 	"time"
 
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-
 	"github.com/rossedman/image-gate/internal/policy"
 	"github.com/rossedman/image-gate/internal/verdict"
 )
@@ -54,7 +52,7 @@ rules:
 	return p
 }
 
-func run(t *testing.T, w *world, p *policy.Policy, repo, digest string, platform *v1.Platform) Result {
+func run(t *testing.T, w *world, p *policy.Policy, repo, digest string) Result {
 	t.Helper()
 	v, err := w.engine().Compile(p)
 	if err != nil {
@@ -67,7 +65,7 @@ func run(t *testing.T, w *world, p *policy.Policy, repo, digest string, platform
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return v.Verify(ctx, Target{Repo: full, Digest: digest, Platform: platform}, rule)
+	return v.Verify(ctx, Target{Repo: full, Digest: digest}, rule)
 }
 
 // TestMatrix is the spec's fixture matrix, for keyless Sigstore bundles
@@ -81,147 +79,149 @@ func TestMatrix(t *testing.T) {
 
 	cases := []struct {
 		name   string
-		setup  func() (repo, digest string, platform *v1.Platform)
+		setup  func() (repo, digest string)
 		want   verdict.Reason
 		signer string
 		detail string
 	}{
 		{
 			name: "signed by ci-main, signed SPDX attestation",
-			setup: func() (string, string, *v1.Platform) {
+			setup: func() (string, string) {
 				d := w.pushImage("acme/spdx")
 				sign("acme/spdx", d)
 				w.attachBundle("acme/spdx", d, w.keylessDSSE(ciMainSAN, d, spdxType))
-				return "acme/spdx", d, nil
+				return "acme/spdx", d
 			},
 			want: verdict.Allowed, signer: "ci-main",
 		},
 		{
 			name: "signed by ci-main, signed CycloneDX attestation",
-			setup: func() (string, string, *v1.Platform) {
+			setup: func() (string, string) {
 				d := w.pushImage("acme/cdx")
 				sign("acme/cdx", d)
 				w.attachBundle("acme/cdx", d, w.keylessDSSE(ciMainSAN, d, cdxType))
-				return "acme/cdx", d, nil
+				return "acme/cdx", d
 			},
 			want: verdict.Allowed, signer: "ci-main",
 		},
 		{
 			name: "versioned SPDX predicate type",
-			setup: func() (string, string, *v1.Platform) {
+			setup: func() (string, string) {
 				d := w.pushImage("acme/spdx23")
 				sign("acme/spdx23", d)
 				w.attachBundle("acme/spdx23", d, w.keylessDSSE(ciMainSAN, d, spdxType+"/v2.3"))
-				return "acme/spdx23", d, nil
+				return "acme/spdx23", d
 			},
 			want: verdict.Allowed,
 		},
 		{
 			name: "signed, no attestation",
-			setup: func() (string, string, *v1.Platform) {
+			setup: func() (string, string) {
 				d := w.pushImage("acme/nosbom")
 				sign("acme/nosbom", d)
-				return "acme/nosbom", d, nil
+				return "acme/nosbom", d
 			},
 			want: verdict.NoSBOM, detail: `signed by identity "ci-main"`,
 		},
 		{
 			name: "signed, BuildKit SBOM attached but unsigned",
-			setup: func() (string, string, *v1.Platform) {
+			setup: func() (string, string) {
 				d, _ := w.pushIndex("acme/buildkit", true)
 				sign("acme/buildkit", d)
-				return "acme/buildkit", d, &v1.Platform{OS: "linux", Architecture: "amd64"}
+				return "acme/buildkit", d
 			},
 			want: verdict.SBOMUntrusted, detail: "unsigned",
 		},
 		{
 			name: "signed, unsigned SPDX referrer",
-			setup: func() (string, string, *v1.Platform) {
+			setup: func() (string, string) {
 				d := w.pushImage("acme/plainsbom")
 				sign("acme/plainsbom", d)
 				w.attachUnsignedSBOM("acme/plainsbom", d)
-				return "acme/plainsbom", d, nil
+				return "acme/plainsbom", d
 			},
 			want: verdict.SBOMUntrusted,
 		},
 		{
 			name: "SBOM attested by another workflow",
-			setup: func() (string, string, *v1.Platform) {
+			setup: func() (string, string) {
 				d := w.pushImage("acme/forksbom")
 				sign("acme/forksbom", d)
 				w.attachBundle("acme/forksbom", d, w.keylessDSSE(forkSAN, d, spdxType))
-				return "acme/forksbom", d, nil
+				return "acme/forksbom", d
 			},
 			want: verdict.SBOMUntrusted, detail: "someone",
 		},
 		{
 			name: "signed by another workflow",
-			setup: func() (string, string, *v1.Platform) {
+			setup: func() (string, string) {
 				d := w.pushImage("acme/fork")
 				w.attachBundle("acme/fork", d, w.keylessDSSE(forkSAN, d, CosignSignPredicate))
 				w.attachBundle("acme/fork", d, w.keylessDSSE(forkSAN, d, spdxType))
-				return "acme/fork", d, nil
+				return "acme/fork", d
 			},
 			want: verdict.IdentityMismatch, detail: forkSAN,
 		},
 		{
 			name: "unsigned",
-			setup: func() (string, string, *v1.Platform) {
-				return "acme/unsigned", w.pushImage("acme/unsigned"), nil
+			setup: func() (string, string) {
+				return "acme/unsigned", w.pushImage("acme/unsigned")
 			},
 			want: verdict.NoSignature,
 		},
 		{
 			name: "SBOM attestation is not a signature",
-			setup: func() (string, string, *v1.Platform) {
+			setup: func() (string, string) {
 				d := w.pushImage("acme/attonly")
 				w.attachBundle("acme/attonly", d, w.keylessDSSE(ciMainSAN, d, spdxType))
-				return "acme/attonly", d, nil
+				return "acme/attonly", d
 			},
 			want: verdict.NoSignature,
 		},
 		{
 			name: "signature for another digest attached here",
-			setup: func() (string, string, *v1.Platform) {
+			setup: func() (string, string) {
 				d := w.pushImage("acme/wrongsubject")
 				other := w.pushImage("acme/other")
 				w.attachBundle("acme/wrongsubject", d, w.keylessDSSE(ciMainSAN, other, CosignSignPredicate))
-				return "acme/wrongsubject", d, nil
+				return "acme/wrongsubject", d
 			},
 			want: verdict.NoSignature, detail: "none valid",
 		},
 		{
 			name: "multi-platform, signed at index",
-			setup: func() (string, string, *v1.Platform) {
+			setup: func() (string, string) {
 				d, _ := w.pushIndex("acme/multi", false)
 				sign("acme/multi", d)
 				w.attachBundle("acme/multi", d, w.keylessDSSE(ciMainSAN, d, spdxType))
-				return "acme/multi", d, &v1.Platform{OS: "linux", Architecture: "arm64"}
+				return "acme/multi", d
 			},
 			want: verdict.Allowed,
 		},
 		{
-			name: "multi-platform, signed at index, SBOM on platform manifest",
-			setup: func() (string, string, *v1.Platform) {
-				d, child := w.pushIndex("acme/multichild", false)
-				sign("acme/multichild", d)
-				w.attachBundle("acme/multichild", child, w.keylessDSSE(ciMainSAN, child, spdxType))
-				return "acme/multichild", d, &v1.Platform{OS: "linux", Architecture: "amd64"}
+			// Only the digest dockerd resolved counts: a signature on one
+			// platform child must not let another child run.
+			name: "multi-platform, signed only on a platform manifest",
+			setup: func() (string, string) {
+				d, child := w.pushIndex("acme/childonly", false)
+				sign("acme/childonly", child)
+				w.attachBundle("acme/childonly", child, w.keylessDSSE(ciMainSAN, child, spdxType))
+				return "acme/childonly", d
 			},
-			want: verdict.Allowed,
+			want: verdict.NoSignature,
 		},
 		{
 			name: "digest not in registry",
-			setup: func() (string, string, *v1.Platform) {
-				return "acme/missing", "sha256:" + strings.Repeat("ab", 32), nil
+			setup: func() (string, string) {
+				return "acme/missing", "sha256:" + strings.Repeat("ab", 32)
 			},
 			want: verdict.LocalImage, detail: "not in registry",
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			repo, digest, platform := tc.setup()
-			got := run(t, w, p, repo, digest, platform)
+			repo, digest := tc.setup()
+			got := run(t, w, p, repo, digest)
 			if got.Reason != tc.want {
 				t.Fatalf("reason = %s (%s), want %s", got.Reason, got.Detail, tc.want)
 			}
@@ -245,14 +245,14 @@ func TestLegacyLayout(t *testing.T) {
 		d := w.pushImage("acme/legacy")
 		w.pushLegacy("acme/legacy", d, ".sig", w.legacyKeylessSig(ciMainSAN, w.host+"/acme/legacy", d))
 		w.attachBundle("acme/legacy", d, w.keylessDSSE(ciMainSAN, d, spdxType))
-		if got := run(t, w, p, "acme/legacy", d, nil); got.Reason != verdict.Allowed {
+		if got := run(t, w, p, "acme/legacy", d); got.Reason != verdict.Allowed {
 			t.Fatalf("got %s: %s", got.Reason, got.Detail)
 		}
 	})
 	t.Run("keyless signature from another identity", func(t *testing.T) {
 		d := w.pushImage("acme/legacyfork")
 		w.pushLegacy("acme/legacyfork", d, ".sig", w.legacyKeylessSig(forkSAN, w.host+"/acme/legacyfork", d))
-		if got := run(t, w, p, "acme/legacyfork", d, nil); got.Reason != verdict.IdentityMismatch {
+		if got := run(t, w, p, "acme/legacyfork", d); got.Reason != verdict.IdentityMismatch {
 			t.Fatalf("got %s: %s", got.Reason, got.Detail)
 		}
 	})
@@ -260,7 +260,7 @@ func TestLegacyLayout(t *testing.T) {
 		d := w.pushImage("keyed/app")
 		w.pushLegacy("keyed/app", d, ".sig", w.legacyKeyedSig(w.host+"/keyed/app", d, w.key))
 		w.pushLegacy("keyed/app", d, ".att", w.legacyKeyedAtt(d, spdxType, w.key))
-		got := run(t, w, p, "keyed/app", d, nil)
+		got := run(t, w, p, "keyed/app", d)
 		if got.Reason != verdict.Allowed || got.Signer != "ci-key" {
 			t.Fatalf("got %s %q: %s", got.Reason, got.Signer, got.Detail)
 		}
@@ -268,7 +268,7 @@ func TestLegacyLayout(t *testing.T) {
 	t.Run("keyed signature by an unknown key", func(t *testing.T) {
 		d := w.pushImage("keyed/otherkey")
 		w.pushLegacy("keyed/otherkey", d, ".sig", w.legacyKeyedSig(w.host+"/keyed/otherkey", d, other))
-		if got := run(t, w, p, "keyed/otherkey", d, nil); got.Reason != verdict.IdentityMismatch {
+		if got := run(t, w, p, "keyed/otherkey", d); got.Reason != verdict.IdentityMismatch {
 			t.Fatalf("got %s: %s", got.Reason, got.Detail)
 		}
 	})
@@ -276,7 +276,7 @@ func TestLegacyLayout(t *testing.T) {
 		d := w.pushImage("keyed/replay")
 		other := w.pushImage("keyed/replay-other")
 		w.pushLegacy("keyed/replay", d, ".sig", w.legacyKeyedSig(w.host+"/keyed/replay", other, w.key))
-		if got := run(t, w, p, "keyed/replay", d, nil); got.Reason == verdict.Allowed {
+		if got := run(t, w, p, "keyed/replay", d); got.Reason == verdict.Allowed {
 			t.Fatalf("replayed signature was accepted")
 		}
 	})
@@ -286,7 +286,7 @@ func TestLegacyLayout(t *testing.T) {
 		l.content = append([]byte(nil), l.content...)
 		l.content[len(l.content)-2] = ' '
 		w.pushLegacy("keyed/tamper", d, ".sig", l)
-		if got := run(t, w, p, "keyed/tamper", d, nil); got.Reason == verdict.Allowed {
+		if got := run(t, w, p, "keyed/tamper", d); got.Reason == verdict.Allowed {
 			t.Fatalf("tampered signature was accepted")
 		}
 	})
@@ -294,14 +294,14 @@ func TestLegacyLayout(t *testing.T) {
 		d := w.pushImage("keyed/v3")
 		w.attachBundle("keyed/v3", d, w.keyedDSSE(d, CosignSignPredicate, w.key))
 		w.attachBundle("keyed/v3", d, w.keyedDSSE(d, spdxType, w.key))
-		if got := run(t, w, p, "keyed/v3", d, nil); got.Reason != verdict.Allowed {
+		if got := run(t, w, p, "keyed/v3", d); got.Reason != verdict.Allowed {
 			t.Fatalf("got %s: %s", got.Reason, got.Detail)
 		}
 	})
 	t.Run("sbom not required", func(t *testing.T) {
 		d := w.pushImage("vendor/agent")
 		w.attachBundle("vendor/agent", d, w.keyedDSSE(d, CosignSignPredicate, w.key))
-		if got := run(t, w, p, "vendor/agent", d, nil); got.Reason != verdict.Allowed {
+		if got := run(t, w, p, "vendor/agent", d); got.Reason != verdict.Allowed {
 			t.Fatalf("got %s: %s", got.Reason, got.Detail)
 		}
 	})
@@ -376,7 +376,7 @@ func TestRequireSCT(t *testing.T) {
 	*p.Trust.RequireSCT = true
 	d := w.pushImage("acme/nosct")
 	w.attachBundle("acme/nosct", d, w.keylessDSSE(ciMainSAN, d, CosignSignPredicate))
-	if got := run(t, w, p, "acme/nosct", d, nil); got.Reason == verdict.Allowed {
+	if got := run(t, w, p, "acme/nosct", d); got.Reason == verdict.Allowed {
 		t.Fatal("certificate without SCT was accepted")
 	}
 }

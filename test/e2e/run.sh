@@ -229,6 +229,22 @@ check "warm pre-verifies a signed image" "$W/imagegate" warm -admin-socket "$W/a
 check "cache purge" "$W/imagegate" cache purge -admin-socket "$W/admin.sock"
 expect "re-verified after purge" allow "$REG/acme/spdx:1"
 
+log "raw API paths dockerd routes to create/start"
+for path in /v1.45.0/containers/create /v1/containers/create /v1.45.0.1/containers/create; do
+  out=$(curl -s --unix-socket "$W/docker.sock" -X POST -H 'Content-Type: application/json' \
+    -d "{\"Image\":\"$REG/acme/unsigned:1\"}" "http://d$path")
+  if grep -q "authorization denied" <<<"$out"; then
+    echo "PASS  POST $path is gated"; pass=$((pass + 1))
+  else
+    echo "FAIL  POST $path bypassed imagegate: $out"; fail=$((fail + 1))
+  fi
+done
+docker create --name signed "$REG/acme/spdx:1" true >/dev/null
+out=$(curl -s --unix-socket "$W/docker.sock" -X POST "http://d/v1.45/containers/signed/x/start")
+grep -q "authorization denied" <<<"$out" \
+  && { echo "PASS  start of a name containing / is gated"; pass=$((pass + 1)); } \
+  || { echo "FAIL  start of a name containing / bypassed imagegate: $out"; fail=$((fail + 1)); }
+
 log "management calls are never blocked"
 check "docker ps" docker ps
 check "docker info" docker info

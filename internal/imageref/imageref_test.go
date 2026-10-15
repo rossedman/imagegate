@@ -13,6 +13,11 @@ func TestParse(t *testing.T) {
 		"ghcr.io/acme/api@" + d:          "ghcr.io/acme/api@" + d,
 		"ghcr.io/acme/api:1.4.2@" + d:    "ghcr.io/acme/api:1.4.2@" + d,
 		"docker.io/library/nginx:latest": "docker.io/library/nginx:latest",
+		"GHCR.IO/acme/api:1":             "ghcr.io/acme/api:1",
+		"ghcr.io:443/acme/api:1":         "ghcr.io/acme/api:1",
+		"registry-1.docker.io/nginx":     "docker.io/library/nginx:latest",
+		"registry-1.docker.io/acme/api":  "docker.io/acme/api:latest",
+		"localhost:5000/acme/api:1":      "localhost:5000/acme/api:1",
 	} {
 		r, err := Parse(in)
 		if err != nil {

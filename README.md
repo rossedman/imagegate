@@ -38,6 +38,9 @@ overrides and the verdict cache, picks the first matching policy rule, then:
    (BuildKit `--sbom=true`, a plain SPDX referrer) is reported as
    `SBOM_UNTRUSTED`.
 
+Both are checked against exactly the digest dockerd resolved (the index for
+a multi-platform image on the containerd store), never a platform child.
+
 Verdicts are cached per (repository, digest, policyHash): 24 h for allows,
 60 s for denies, in memory with a bbolt file behind it. Concurrent requests
 for the same digest share one verification.
@@ -79,7 +82,15 @@ denies. `mode: audit` evaluates everything and logs the would-be verdict but
 always allows. The file is validated on load and on SIGHUP
 (`systemctl reload imagegate`); an invalid file is rejected and the last
 good policy stays active. An invalid policy at boot denies all creates
-(`NO_POLICY`) and allows every other call.
+(`NO_POLICY`) and allows every other call, including starts. The policy
+hash also covers the contents of public key files and a private
+`trusted_root.json`, so rotating a key at the same path invalidates cached
+verdicts. `verifyTimeout` is capped at 25 s, below dockerd's plugin call
+timeout.
+
+`failClosed: false` turns "could not verify" into allow. Anyone who can make
+a rule's registry unreachable or slow for imagegate then gets their image
+run, so use it only for rules whose registries attackers cannot influence.
 
 Settings beyond the spec's example:
 
@@ -152,9 +163,18 @@ because CI has no OIDC identity; keyless is covered by the Go tests.
 - **Start fails closed** if imagegate cannot find the container through its
   dockerd socket, so a wrong `-docker-socket` blocks starts instead of
   silently allowing everything. `restart` is re-checked like `start`.
-- **Index and platform digests** (open question 1): a signature or SBOM on
-  the index digest or on the platform manifest selected by `platform` (or
-  the image's own platform) is accepted.
+- **Index and platform digests** (open question 1): only the digest dockerd
+  resolved counts, which on the containerd store is the index. Accepting a
+  signature on a platform child would make the verdict depend on which child
+  is selected, and imagegate cannot see which child dockerd runs. Sign and
+  attest the index (`cosign sign <image>@<index digest>`).
+- **Registry hostnames are canonicalized** before rule matching: lower-cased,
+  `:443` dropped, and Docker Hub aliases (`registry-1.docker.io`,
+  `index.docker.io`) mapped to `docker.io`.
+- **Unrecognized create/start paths are denied.** dockerd accepts any
+  `/v[0-9.]+` version prefix and container names containing `/`; imagegate
+  matches the same, and denies a POST that ends like a create, start or
+  restart but does not parse.
 - **Signature layouts** (open question 4): both; referrers first, then legacy
   tags.
 - **SIGHUP and `authorization-plugins`** (open question 6): on Docker 29.8.2,
@@ -176,6 +196,17 @@ never sees them (in addition to the spec's gap table):
   not through `/containers/create`.
 - **Managed plugins.** `docker plugin install` runs a plugin image; imagegate
   allows `/plugins/*` so it can never lock out plugin management.
+- **Swarm.** `POST /swarm/init` followed by `/services/create` makes the
+  daemon create task containers internally. Until service verification
+  (v1.1) exists, deny Swarm on enforced hosts by other means, or treat it as
+  open.
+- **`PUT /containers/{id}/archive`** can change a created container's files
+  before it starts.
+
+imagegate proves where an image came from. It is not a boundary against
+users who already have full Docker API access: those users can use the
+paths above, or run an allowed image with `--privileged`, until the v1.1
+container-config rules exist.
 
 **Latency.** imagegate's own overhead on a cached create is about 15 µs
 (`go test -bench . ./internal/gate`), and a cached start takes 1–2 ms end to

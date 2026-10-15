@@ -37,7 +37,7 @@ func Parse(s string) (Ref, error) {
 	if err != nil {
 		return Ref{}, fmt.Errorf("invalid image reference %q: %w", s, err)
 	}
-	r := Ref{Repo: named.Name()}
+	r := Ref{Repo: canonicalRepo(named.Name())}
 	if t, ok := named.(reference.Tagged); ok {
 		r.Tag = t.Tag()
 	}
@@ -76,4 +76,27 @@ func LooksLikeID(s string) bool {
 		}
 	}
 	return true
+}
+
+// dockerHubAliases are hostnames that serve Docker Hub.
+var dockerHubAliases = map[string]bool{
+	"docker.io": true, "index.docker.io": true, "registry-1.docker.io": true, "registry.hub.docker.com": true,
+}
+
+// canonicalRepo gives every spelling of a repository one form, so policy
+// globs cannot be sidestepped: hostnames are case-insensitive, :443 is the
+// default HTTPS port, and Docker Hub has several hostnames.
+func canonicalRepo(name string) string {
+	host, path, ok := strings.Cut(name, "/")
+	if !ok {
+		return name
+	}
+	host = strings.TrimSuffix(strings.ToLower(host), ":443")
+	if dockerHubAliases[host] {
+		host = "docker.io"
+		if !strings.Contains(path, "/") {
+			path = "library/" + path
+		}
+	}
+	return host + "/" + path
 }

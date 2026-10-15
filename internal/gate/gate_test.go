@@ -314,8 +314,8 @@ func TestNoPolicyAtBoot(t *testing.T) {
 	if d.Allow || !strings.Contains(d.Msg, "NO_POLICY") {
 		t.Errorf("got %+v", d)
 	}
-	if d := g.Start(context.Background(), "", "containers/start", "x"); d.Allow {
-		t.Error("start allowed without a policy")
+	if d := g.Start(context.Background(), "", "containers/start", "x"); !d.Allow {
+		t.Error("start must be allowed without a policy (only creates are denied)")
 	}
 }
 
@@ -514,5 +514,24 @@ func TestLocalImageFromVerifier(t *testing.T) {
 		if d.Allow != (local == "allow") || h.lastAudit(t).Reason != "LOCAL_IMAGE" {
 			t.Errorf("localImages=%s: %+v", local, d)
 		}
+	}
+}
+
+type panicVerifier struct{}
+
+func (panicVerifier) Verify(context.Context, verify.Target, *policy.Rule) verify.Result {
+	var m map[string]int
+	m["boom"]++ // nil map write: panics
+	return verify.Result{}
+}
+
+// A panic while verifying (registry-controlled input) must deny, not crash
+// the process.
+func TestVerifyPanic(t *testing.T) {
+	h := newHarness(t, "enforce", true, "deny")
+	h.g.cfg.Compile = func(*policy.Policy) (Verifier, error) { return panicVerifier{}, nil }
+	h.g.ReloadPolicy()
+	if d := h.create("ghcr.io/acme/api:1"); d.Allow || !strings.Contains(d.Msg, "internal error") {
+		t.Errorf("got %+v", d)
 	}
 }

@@ -68,54 +68,38 @@ func (r *registry) options(ctx context.Context) []remote.Option {
 	}
 }
 
-// subjects returns the digests to look for signatures on: the image digest
-// itself and, when it is an index, the platform manifest for platform. It
-// also reports unsigned BuildKit SBOM attestations in the index.
-func (r *registry) subjects(ctx context.Context, repo name.Repository, digest string, platform *v1.Platform, sbomTypes []string) ([]string, bool, error) {
+// unsignedBuildKitSBOM reports whether digest is an index carrying a
+// BuildKit SBOM attestation manifest. Those are unsigned; they only explain
+// an SBOM_UNTRUSTED verdict.
+func (r *registry) unsignedBuildKitSBOM(ctx context.Context, repo name.Repository, digest string, sbomTypes []string) (bool, error) {
 	desc, err := remote.Get(repo.Digest(digest), r.options(ctx)...)
 	if err != nil {
-		return nil, false, err
+		return false, err
 	}
-	subjects := []string{digest}
 	if !desc.MediaType.IsIndex() {
-		return subjects, false, nil
+		return false, nil
 	}
 	idx, err := desc.ImageIndex()
 	if err != nil {
-		return nil, false, err
+		return false, err
 	}
 	im, err := idx.IndexManifest()
 	if err != nil {
-		return nil, false, err
+		return false, err
 	}
-	var child string
-	for _, m := range im.Manifests {
-		if m.Annotations[buildkitRefType] != "" || m.Platform == nil {
-			continue
-		}
-		if platform == nil || m.Platform.Satisfies(*platform) {
-			child = m.Digest.String()
-			break
-		}
-	}
-	if child != "" {
-		subjects = append(subjects, child)
-	}
-	unsigned := false
 	for _, m := range im.Manifests {
 		if m.Annotations[buildkitRefType] != "attestation-manifest" {
 			continue
 		}
-		if child != "" && m.Annotations[buildkitRefDigest] != child {
-			continue
-		}
 		has, err := r.buildkitHasSBOM(ctx, repo, m.Digest.String(), sbomTypes)
 		if err != nil {
-			return nil, false, err
+			return false, err
 		}
-		unsigned = unsigned || has
+		if has {
+			return true, nil
+		}
 	}
-	return subjects, unsigned, nil
+	return false, nil
 }
 
 func (r *registry) buildkitHasSBOM(ctx context.Context, repo name.Repository, digest string, sbomTypes []string) (bool, error) {

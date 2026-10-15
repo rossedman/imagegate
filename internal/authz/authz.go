@@ -72,35 +72,46 @@ const (
 	passThrough gated = iota
 	create
 	start
+	// unrecognized is a POST that looks like a create, start or restart
+	// but whose path did not parse cleanly. It is denied rather than
+	// risking a request that dockerd routes but imagegate does not.
+	unrecognized
 )
 
 var (
-	versionPrefix = regexp.MustCompile(`^/v[0-9]+(\.[0-9]+)?`)
-	startPath     = regexp.MustCompile(`^/containers/([^/]+)/(start|restart)$`)
+	// dockerd routes /v{version:[0-9.]+}/...; strip exactly that.
+	versionPrefix = regexp.MustCompile(`^/v[0-9.]+(/|$)`)
+	// dockerd routes /containers/{name:.*}/start, so names may contain
+	// "/" (legacy link aliases such as web/db).
+	startPath   = regexp.MustCompile(`^/containers/(.+)/(start|restart)$`)
+	gatedSuffix = regexp.MustCompile(`/containers/(create|.+/(start|restart))$`)
 )
 
 // Classify returns what kind of gated request this is, the container ID for
 // start/restart, and the query.
 func Classify(method, requestURI string) (kind gated, endpoint, containerID string, query url.Values) {
-	if method != http.MethodPost {
+	if !strings.EqualFold(method, http.MethodPost) {
 		return passThrough, "", "", nil
 	}
 	u, err := url.ParseRequestURI(requestURI)
 	if err != nil {
+		if strings.Contains(requestURI, "/containers/") {
+			return unrecognized, "", "", nil
+		}
 		return passThrough, "", "", nil
 	}
-	p := versionPrefix.ReplaceAllString(u.Path, "")
-	p = strings.TrimRight(p, "/")
+	p := strings.TrimRight(u.Path, "/")
+	if m := versionPrefix.FindString(p); m != "" {
+		p = "/" + strings.TrimPrefix(p[len(m):], "/")
+	}
 	switch {
 	case p == "/containers/create":
 		return create, "containers/create", "", u.Query()
 	case startPath.MatchString(p):
 		m := startPath.FindStringSubmatch(p)
-		id, err := url.PathUnescape(m[1])
-		if err != nil {
-			id = m[1]
-		}
-		return start, "containers/" + m[2], id, u.Query()
+		return start, "containers/" + m[2], m[1], u.Query()
+	case gatedSuffix.MatchString(p):
+		return unrecognized, "", "", nil
 	}
 	return passThrough, "", "", nil
 }
@@ -126,8 +137,13 @@ func (h *Handler) authzReq(w http.ResponseWriter, r *http.Request) {
 		write(w, Response{Allow: true})
 		return
 	}
-	if kind == passThrough {
+	switch kind {
+	case passThrough:
 		write(w, Response{Allow: true})
+		return
+	case unrecognized:
+		h.Log.Warn("denying unrecognized container request", "method", req.RequestMethod, "uri", req.RequestURI)
+		write(w, Response{Msg: verdict.Message("container", verdict.BadRequest, "unrecognized request path "+req.RequestURI, "")})
 		return
 	}
 

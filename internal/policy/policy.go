@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -24,6 +25,11 @@ const (
 	ModeEnforce Mode = "enforce"
 	ModeAudit   Mode = "audit"
 )
+
+// MaxVerifyTimeout keeps verification below dockerd's 30s plugin call
+// timeout, so a slow verification is imagegate's TIMEOUT verdict rather
+// than a dockerd-side plugin error.
+const MaxVerifyTimeout = 25 * time.Second
 
 // Known SBOM predicate types, used when a rule does not list its own.
 var DefaultPredicateTypes = []string{
@@ -112,7 +118,42 @@ func Load(path string) (*Policy, error) {
 	if err != nil {
 		return nil, err
 	}
-	return Parse(raw)
+	p, err := Parse(raw)
+	if err != nil {
+		return nil, err
+	}
+	if err := p.hashReferencedFiles(); err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+// hashReferencedFiles folds the contents of public keys and a private
+// trusted root into Hash, so replacing a key at the same path invalidates
+// cached verdicts just like editing the policy does.
+func (p *Policy) hashReferencedFiles() error {
+	var paths []string
+	for _, id := range p.Identities {
+		if id.Keyed() {
+			paths = append(paths, id.PublicKey)
+		}
+	}
+	if p.Trust.Sigstore != "public-good" {
+		paths = append(paths, p.Trust.Sigstore)
+	}
+	sort.Strings(paths)
+	h := sha256.New()
+	h.Write([]byte(p.Hash))
+	for _, f := range paths {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			return err
+		}
+		sum := sha256.Sum256(raw)
+		fmt.Fprintf(h, "\n%s %x", f, sum)
+	}
+	p.Hash = hex.EncodeToString(h.Sum(nil))
+	return nil
 }
 
 // Parse validates and hashes a policy document.
@@ -182,6 +223,9 @@ func (p *Policy) validate() error {
 	}
 	if p.Defaults.VerifyTimeout < 0 || p.Defaults.Cache.AllowTTL < 0 || p.Defaults.Cache.DenyTTL < 0 {
 		errs = append(errs, errors.New("defaults: durations must be positive"))
+	}
+	if p.Defaults.VerifyTimeout.D() > MaxVerifyTimeout {
+		errs = append(errs, fmt.Errorf("defaults.verifyTimeout must be at most %s, below dockerd's plugin call timeout", MaxVerifyTimeout))
 	}
 	for name, id := range p.Identities {
 		if err := id.validate(); err != nil {
