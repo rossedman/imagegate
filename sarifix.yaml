@@ -19,7 +19,7 @@ rules:
   min_level: error
   # Only these become issues in the GitHub Action; the Stop hook ignores
   # allow and reports everything not denied.
-  allow: ["golangci-lint/*"]  # trivy and semgrep: code scanning only, for now
+  allow: ["golangci-lint/*", "trivy/*", "semgrep/*"]
   deny:
     # The image runs as root by design: it needs the dockerd socket and
     # creates the plugin socket (see packaging/Dockerfile).
