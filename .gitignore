@@ -35,3 +35,7 @@ bin/
 site/
 build/
 dist/
+
+# make bench output
+bench.txt
+/imagegate
