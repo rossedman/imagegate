@@ -12,7 +12,7 @@ audit mode so nothing breaks while you look.
 ## Requirements
 
 - Linux with Docker Engine. Tested on Docker 29.8 with the containerd image store.
-- systemd, root access, and outbound HTTPS to your registries and to the
+- systemd (or OpenRC on Alpine), root access, and outbound HTTPS to your registries and to the
   Sigstore TUF repository (for keyless verification).
 - Go, to build from source, or a release binary.
 
@@ -51,7 +51,7 @@ has packages, archives and a container image for `linux/amd64`, `arm64`,
     VERSION=0.1.0 ARCH=amd64
     curl -fsSL https://github.com/rossedman/imagegate/releases/download/v$VERSION/imagegate_${VERSION}_linux_$ARCH.tar.gz \
       | sudo tar -xz -C /usr/local/bin imagegate
-    # systemd units, example policy and runbook are in the same archive under deploy/
+    # systemd units and the example policy are in the same archive under deploy/, the runbook under docs/
     ```
 
 === "From source"
@@ -143,7 +143,8 @@ call. Audit records go to `docker logs imagegate`.
 The packages install a starter policy. For a binary install:
 
 ```sh
-install -d -m 0755 /etc/imagegate /etc/imagegate/overrides.d /etc/imagegate/registry
+install -d -m 0755 /etc/imagegate /etc/imagegate/overrides.d
+install -d -m 0700 /etc/imagegate/registry
 curl -fsSLo /etc/imagegate/policy.yaml \
   https://raw.githubusercontent.com/rossedman/imagegate/main/deploy/policy.example.yaml
 ```
