@@ -49,6 +49,8 @@ Usage:
 Run "imagegate <command> -h" for flags.
 `
 
+// main dispatches to a subcommand; serve is the default so dockerd's
+// systemd unit can run the bare binary.
 func main() {
 	args := os.Args[1:]
 	cmd := "serve"
@@ -81,10 +83,12 @@ func main() {
 	}
 }
 
+// paths holds the socket, config and state locations shared by subcommands.
 type paths struct {
 	socket, policy, overrides, registry, cacheDB, tufCache, dockerSocket, adminSocket string
 }
 
+// commonFlags registers the path flags every subcommand accepts on fs.
 func commonFlags(fs *flag.FlagSet) *paths {
 	p := &paths{}
 	fs.StringVar(&p.socket, "socket", "/run/docker/plugins/imagegate.sock", "plugin socket dockerd discovers")
@@ -98,13 +102,15 @@ func commonFlags(fs *flag.FlagSet) *paths {
 	return p
 }
 
+// serve runs the plugin, admin and metrics servers until SIGINT or SIGTERM,
+// reloading policy on SIGHUP and overrides every 10 seconds.
 func serve(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	p := commonFlags(fs)
 	metricsAddr := fs.String("metrics-addr", "127.0.0.1:9732", "localhost address for /metrics and /healthz")
 	cacheSize := fs.Int("cache-size", 10000, "in-memory verdict cache entries")
 	logLevel := fs.String("log-level", "info", "debug, info, warn or error")
-	fs.Parse(args)
+	_ = fs.Parse(args) // ExitOnError: never returns an error
 
 	var lvl slog.Level
 	if err := lvl.UnmarshalText([]byte(*logLevel)); err != nil {
@@ -114,8 +120,12 @@ func serve(args []string) error {
 	slog.SetDefault(log)
 
 	// Registry credentials are imagegate's own, never a user's.
-	os.Setenv("DOCKER_CONFIG", p.registry)
-	os.Setenv("PATH", p.registry+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if err := os.Setenv("DOCKER_CONFIG", p.registry); err != nil {
+		return fmt.Errorf("set DOCKER_CONFIG: %w", err)
+	}
+	if err := os.Setenv("PATH", p.registry+string(os.PathListSeparator)+os.Getenv("PATH")); err != nil {
+		return fmt.Errorf("set PATH: %w", err)
+	}
 
 	m := metrics.New()
 	if err := os.MkdirAll(filepath.Dir(p.cacheDB), 0o700); err != nil {
@@ -125,7 +135,7 @@ func serve(args []string) error {
 	if err != nil {
 		return fmt.Errorf("open cache: %w", err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -204,7 +214,7 @@ func serve(args []string) error {
 			http.Error(w, "no valid policy loaded", http.StatusServiceUnavailable)
 			return
 		}
-		io.WriteString(w, "ok\n")
+		_, _ = io.WriteString(w, "ok\n")
 	})
 
 	servers := []*http.Server{
@@ -229,14 +239,17 @@ func serve(args []string) error {
 	for _, s := range servers {
 		_ = s.Shutdown(shutdown)
 	}
-	os.Remove(p.socket)
-	os.Remove(p.adminSocket)
+	// Best effort: listenUnix replaces stale sockets on the next start.
+	_ = os.Remove(p.socket)
+	_ = os.Remove(p.adminSocket)
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}
 	return err
 }
 
+// listenUnix listens on a Unix socket at path with the given mode,
+// replacing a stale socket left by an unclean exit.
 func listenUnix(path string, mode os.FileMode) (net.Listener, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
@@ -249,16 +262,18 @@ func listenUnix(path string, mode os.FileMode) (net.Listener, error) {
 		return nil, err
 	}
 	if err := os.Chmod(path, mode); err != nil {
-		l.Close()
+		_ = l.Close()
 		return nil, err
 	}
 	return l, nil
 }
 
+// validate loads and compiles a policy file, including its trust root, and
+// prints its hash.
 func validate(args []string) error {
 	fs := flag.NewFlagSet("validate", flag.ExitOnError)
 	path := fs.String("policy", "/etc/imagegate/policy.yaml", "policy file")
-	fs.Parse(args)
+	_ = fs.Parse(args) // ExitOnError: never returns an error
 	if fs.NArg() > 0 {
 		*path = fs.Arg(0)
 	}
@@ -278,12 +293,14 @@ func validate(args []string) error {
 	return nil
 }
 
+// warm asks a running imagegate to verify refs and cache the verdicts,
+// failing if any would be denied.
 func warm(args []string) error {
 	fs := flag.NewFlagSet("warm", flag.ExitOnError)
 	p := commonFlags(fs)
-	fs.Parse(args)
+	_ = fs.Parse(args) // ExitOnError: never returns an error
 	if fs.NArg() == 0 {
-		return errors.New("usage: imagegate warm <ref>...")
+		return errors.New("usage: imagegate warm <ref> [ref...]")
 	}
 	res, err := admin.NewClient(p.adminSocket).Warm(fs.Args())
 	if err != nil {
@@ -308,13 +325,15 @@ func warm(args []string) error {
 	return nil
 }
 
+// cachePurge drops cached verdicts on a running imagegate, for one digest
+// or all of them.
 func cachePurge(args []string) error {
 	if len(args) == 0 || args[0] != "purge" {
 		return errors.New("usage: imagegate cache purge [digest]")
 	}
 	fs := flag.NewFlagSet("cache purge", flag.ExitOnError)
 	p := commonFlags(fs)
-	fs.Parse(args[1:])
+	_ = fs.Parse(args[1:]) // ExitOnError: never returns an error
 	n, err := admin.NewClient(p.adminSocket).Purge(fs.Arg(0))
 	if err != nil {
 		return err
@@ -327,7 +346,7 @@ func cachePurge(args []string) error {
 func health(args []string) error {
 	fs := flag.NewFlagSet("health", flag.ExitOnError)
 	p := commonFlags(fs)
-	fs.Parse(args)
+	_ = fs.Parse(args) // ExitOnError: never returns an error
 	client := &http.Client{Timeout: 2 * time.Second, Transport: &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			var d net.Dialer
@@ -338,7 +357,7 @@ func health(args []string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("plugin socket answered %s", resp.Status)
 	}

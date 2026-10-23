@@ -27,6 +27,7 @@ type TrustSource interface {
 // trusted_root.json.
 type StaticTrust struct{ Material root.TrustedMaterial }
 
+// TrustedMaterial returns the fixed root, or ErrNoTrustedRoot when unset.
 func (s StaticTrust) TrustedMaterial() (root.TrustedMaterial, error) {
 	if s.Material == nil {
 		return nil, ErrNoTrustedRoot
@@ -70,6 +71,8 @@ func NewTUFTrust(cacheDir string, refresh time.Duration, log *slog.Logger, onErr
 	return &TUFTrust{opts: opts, refresh: refresh, log: log, onError: onError}
 }
 
+// TrustedMaterial returns the last loaded root, or ErrNoTrustedRoot before
+// the first successful load.
 func (t *TUFTrust) TrustedMaterial() (root.TrustedMaterial, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -97,6 +100,8 @@ func (t *TUFTrust) Run(ctx context.Context) {
 	}
 }
 
+// load fetches the trusted root through TUF. With no root loaded yet, a
+// failed fetch falls back to the on-disk cache.
 func (t *TUFTrust) load() error {
 	tr, err := root.FetchTrustedRootWithOptions(t.opts)
 	if err != nil {

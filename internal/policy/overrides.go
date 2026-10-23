@@ -102,6 +102,8 @@ func LoadOverrides(dir string, now time.Time) (*Overrides, error) {
 	return out, errors.Join(errs...)
 }
 
+// validate enforces the override contract: a full sha256 digest, a ticket,
+// and an expiry no more than MaxOverrideLifetime after now.
 func (o Override) validate(now time.Time) error {
 	if !digestRE.MatchString(o.Digest) {
 		return fmt.Errorf("digest must be sha256:<64 hex>, got %q", o.Digest)

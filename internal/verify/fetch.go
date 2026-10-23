@@ -59,6 +59,8 @@ type registry struct {
 	transport http.RoundTripper
 }
 
+// options are the remote options for every registry call: imagegate's own
+// keychain and transport, bound to ctx.
 func (r *registry) options(ctx context.Context) []remote.Option {
 	return []remote.Option{
 		remote.WithContext(ctx),
@@ -102,6 +104,9 @@ func (r *registry) unsignedBuildKitSBOM(ctx context.Context, repo name.Repositor
 	return false, nil
 }
 
+// buildkitHasSBOM reports whether the manifest at digest has a layer
+// annotated with an allowed in-toto predicate type. BuildKit attaches SBOMs
+// unsigned, so this only improves the denial message.
 func (r *registry) buildkitHasSBOM(ctx context.Context, repo name.Repository, digest string, sbomTypes []string) (bool, error) {
 	img, err := remote.Image(repo.Digest(digest), r.options(ctx)...)
 	if err != nil {
@@ -134,6 +139,9 @@ func (r *registry) find(ctx context.Context, repo name.Repository, digest string
 	return out, nil
 }
 
+// fromReferrers adds Sigstore bundles from the referrers API to out, up to
+// maxEntities, and notes unsigned SBOM referrers. Transient errors are
+// returned; malformed bundles are skipped.
 func (r *registry) fromReferrers(ctx context.Context, repo name.Repository, digest string, out *found) error {
 	idx, err := remote.Referrers(repo.Digest(digest), r.options(ctx)...)
 	if err != nil {
@@ -173,6 +181,8 @@ func (r *registry) fromReferrers(ctx context.Context, repo name.Repository, dige
 	return nil
 }
 
+// bundleFromManifest reads the Sigstore bundle in the first layer of the
+// referrer manifest at digest.
 func (r *registry) bundleFromManifest(ctx context.Context, repo name.Repository, digest string) (*bundle.Bundle, error) {
 	img, err := remote.Image(repo.Digest(digest), r.options(ctx)...)
 	if err != nil {
@@ -196,6 +206,8 @@ func (r *registry) bundleFromManifest(ctx context.Context, repo name.Repository,
 	return &b, nil
 }
 
+// fromLegacyTag adds entities from cosign's sha256-<hex><suffix> tag (.sig
+// or .att) to out, up to maxEntities. A missing tag is not an error.
 func (r *registry) fromLegacyTag(ctx context.Context, repo name.Repository, digest, suffix string, out *found) error {
 	tag := repo.Tag(strings.Replace(digest, ":", "-", 1) + suffix)
 	img, err := remote.Image(tag, r.options(ctx)...)
@@ -237,12 +249,13 @@ func (r *registry) fromLegacyTag(ctx context.Context, repo name.Repository, dige
 	return nil
 }
 
+// readLayer reads a layer's compressed bytes, refusing more than maxBlob.
 func readLayer(l v1.Layer) ([]byte, error) {
 	rc, err := l.Compressed()
 	if err != nil {
 		return nil, err
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 	raw, err := io.ReadAll(io.LimitReader(rc, maxBlob+1))
 	if err != nil {
 		return nil, err
@@ -253,11 +266,14 @@ func readLayer(l v1.Layer) ([]byte, error) {
 	return raw, nil
 }
 
+// isSBOMMediaType reports whether mt names an SPDX or CycloneDX document.
 func isSBOMMediaType(mt string) bool {
 	mt = strings.ToLower(mt)
 	return strings.Contains(mt, "spdx") || strings.Contains(mt, "cyclonedx")
 }
 
+// isNotFound reports a registry 404 or a manifest, name or blob unknown
+// error code.
 func isNotFound(err error) bool {
 	var te *transport.Error
 	if errors.As(err, &te) {

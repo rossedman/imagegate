@@ -6,6 +6,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 )
 
+// Metrics holds every collector imagegate exports, on its own registry.
 type Metrics struct {
 	Registry           *prometheus.Registry
 	Decisions          *prometheus.CounterVec
@@ -16,6 +17,8 @@ type Metrics struct {
 	PolicyReloadErrors prometheus.Counter
 }
 
+// New creates the collectors and registers them, with the Go and process
+// collectors, on a fresh registry.
 func New() *Metrics {
 	m := &Metrics{
 		Registry: prometheus.NewRegistry(),

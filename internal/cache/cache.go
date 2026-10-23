@@ -29,6 +29,7 @@ type Key struct {
 	PolicyHash string
 }
 
+// String is the key's storage form, repo@digest|policyHash.
 func (k Key) String() string { return k.Repo + "@" + k.Digest + "|" + k.PolicyHash }
 
 // ImageDigest records which repository digest a local image ID resolved to.
@@ -75,7 +76,7 @@ func Open(path string, size int) (*Cache, error) {
 		return err
 	})
 	if err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 	c.db = db
@@ -220,6 +221,8 @@ func (c *Cache) Purge(digest string) (int, error) {
 	return max(n, dbN), err
 }
 
+// keyHasDigest reports whether storage key k is for digest, in any
+// repository and under any policy.
 func keyHasDigest(k, digest string) bool {
 	return strings.Contains(k, "@"+digest+"|")
 }

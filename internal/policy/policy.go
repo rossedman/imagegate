@@ -21,6 +21,7 @@ const APIVersion = "imagegate.dev/v1"
 // Mode controls whether verdicts are enforced or only logged.
 type Mode string
 
+// Modes: enforce denies; audit logs the denial and allows.
 const (
 	ModeEnforce Mode = "enforce"
 	ModeAudit   Mode = "audit"
@@ -31,7 +32,8 @@ const (
 // than a dockerd-side plugin error.
 const MaxVerifyTimeout = 25 * time.Second
 
-// Known SBOM predicate types, used when a rule does not list its own.
+// DefaultPredicateTypes are the SBOM predicate types used when a rule does
+// not list its own.
 var DefaultPredicateTypes = []string{
 	"https://spdx.dev/Document",
 	"https://cyclonedx.org/bom",
@@ -52,6 +54,7 @@ type Policy struct {
 	Hash string `yaml:"-"`
 }
 
+// Defaults are the policy-wide verification and cache settings.
 type Defaults struct {
 	// FailClosed denies creates when verification cannot complete
 	// (registry down, timeout). Defaults to true.
@@ -62,11 +65,13 @@ type Defaults struct {
 	HelpURL string `yaml:"helpURL"`
 }
 
+// Cache sets how long allow and deny verdicts are cached.
 type Cache struct {
 	AllowTTL Duration `yaml:"allowTTL"`
 	DenyTTL  Duration `yaml:"denyTTL"`
 }
 
+// Trust selects the Sigstore trusted root and certificate requirements.
 type Trust struct {
 	// Sigstore is "public-good" or a path to a private trusted_root.json.
 	Sigstore string `yaml:"sigstore"`
@@ -89,6 +94,8 @@ type Identity struct {
 // Fulcio certificate identity.
 func (i Identity) Keyed() bool { return i.PublicKey != "" }
 
+// Rule is one policy rule: the repositories it covers and the signature and
+// SBOM requirements an image in them must meet.
 type Rule struct {
 	Name      string        `yaml:"name"`
 	Images    []string      `yaml:"images"`
@@ -98,10 +105,13 @@ type Rule struct {
 	globs []glob
 }
 
+// SignatureRule names the identities, any one of which may sign the image.
 type SignatureRule struct {
 	Identities []string `yaml:"identities"`
 }
 
+// SBOMRule sets the SBOM attestation requirement: which identities may sign
+// it and which predicate types count.
 type SBOMRule struct {
 	// Required defaults to true.
 	Required       *bool    `yaml:"required"`
@@ -150,7 +160,7 @@ func (p *Policy) hashReferencedFiles() error {
 			return err
 		}
 		sum := sha256.Sum256(raw)
-		fmt.Fprintf(h, "\n%s %x", f, sum)
+		_, _ = fmt.Fprintf(h, "\n%s %x", f, sum) // hash writes never fail
 	}
 	p.Hash = hex.EncodeToString(h.Sum(nil))
 	return nil
@@ -176,6 +186,8 @@ func Parse(raw []byte) (*Policy, error) {
 	return &p, nil
 }
 
+// applyDefaults fills unset fields with their documented defaults, which
+// fail closed (failClosed, requireSCT, localImages: deny).
 func (p *Policy) applyDefaults() {
 	if p.Mode == "" {
 		p.Mode = ModeEnforce
@@ -210,6 +222,7 @@ func (p *Policy) applyDefaults() {
 	}
 }
 
+// validate reports every problem in the policy at once, joined.
 func (p *Policy) validate() error {
 	var errs []error
 	if p.APIVersion != APIVersion {
@@ -272,6 +285,7 @@ func (p *Policy) validate() error {
 	return errors.Join(errs...)
 }
 
+// checkRefs reports names that are not defined under identities.
 func (p *Policy) checkRefs(where string, names []string) []error {
 	var errs []error
 	for _, n := range names {
@@ -282,6 +296,8 @@ func (p *Policy) checkRefs(where string, names []string) []error {
 	return errs
 }
 
+// validate requires exactly one of a public key or a keyless identity, and
+// for keyless exactly one exact-or-regexp form each of issuer and subject.
 func (i Identity) validate() error {
 	keyless := i.Issuer != "" || i.IssuerRegExp != "" || i.Subject != "" || i.SubjectRegExp != ""
 	switch {
@@ -335,6 +351,7 @@ func canonicalHash(raw []byte) (string, error) {
 // Duration is a time.Duration that unmarshals from strings like "10s".
 type Duration time.Duration
 
+// UnmarshalYAML parses a Go duration string, reporting the line on error.
 func (d *Duration) UnmarshalYAML(n *yaml.Node) error {
 	var s string
 	if err := n.Decode(&s); err != nil {
@@ -348,4 +365,5 @@ func (d *Duration) UnmarshalYAML(n *yaml.Node) error {
 	return nil
 }
 
+// D returns d as a time.Duration.
 func (d Duration) D() time.Duration { return time.Duration(d) }

@@ -68,6 +68,8 @@ func Handler(g Gate) http.Handler {
 // Client calls a running imagegate over its admin socket.
 type Client struct{ http *http.Client }
 
+// NewClient returns a client for the admin socket at socket. The timeout is
+// long because warm runs cold verifications.
 func NewClient(socket string) *Client {
 	return &Client{http: &http.Client{
 		Timeout: 5 * time.Minute,
@@ -78,24 +80,30 @@ func NewClient(socket string) *Client {
 	}}
 }
 
+// Warm asks the server to verify and cache each ref, returning one result
+// per ref in order.
 func (c *Client) Warm(refs []string) ([]WarmResult, error) {
 	body, _ := json.Marshal(refs)
 	var out []WarmResult
 	return out, c.post("/warm", body, &out)
 }
 
+// Purge drops cached verdicts for digest, or every verdict when digest is
+// empty, and returns how many were dropped.
 func (c *Client) Purge(digest string) (int, error) {
 	var out map[string]int
 	err := c.post("/cache/purge?digest="+url.QueryEscape(digest), nil, &out)
 	return out["purged"], err
 }
 
+// post sends body to path and decodes a 200 JSON response into out; other
+// statuses become errors carrying the server's message.
 func (c *Client) post(path string, body []byte, out any) error {
 	resp, err := c.http.Post("http://imagegate"+path, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("is imagegate running? %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return fmt.Errorf("%s: %s", resp.Status, bytes.TrimSpace(msg))

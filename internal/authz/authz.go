@@ -52,6 +52,8 @@ type Handler struct {
 	Log  *slog.Logger
 }
 
+// ServeHTTP routes the three plugin protocol endpoints. The response phase
+// is always allowed: only requests are gated.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/Plugin.Activate":
@@ -116,6 +118,8 @@ func Classify(method, requestURI string) (kind gated, endpoint, containerID stri
 	return passThrough, "", "", nil
 }
 
+// authzReq answers the request phase: non-gated requests are allowed, and
+// gated ones go to the gate.
 func (h *Handler) authzReq(w http.ResponseWriter, r *http.Request) {
 	var req Request
 	raw, err := io.ReadAll(io.LimitReader(r.Body, 16<<20))
@@ -169,6 +173,7 @@ func (h *Handler) decide(ctx context.Context, kind gated, req Request, endpoint,
 	return Response{Allow: d.Allow, Msg: d.Msg}
 }
 
+// write encodes v as a plugin protocol response.
 func write(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", contentType)
 	_ = json.NewEncoder(w).Encode(v)

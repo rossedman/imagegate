@@ -12,6 +12,8 @@ type glob struct {
 	re *regexp.Regexp
 }
 
+// compileGlob turns an images pattern into an anchored regexp, rejecting
+// patterns that carry a tag or digest.
 func compileGlob(pattern string) (glob, error) {
 	if pattern == "" {
 		return glob{}, fmt.Errorf("empty image glob")
@@ -43,8 +45,11 @@ func compileGlob(pattern string) (glob, error) {
 	return glob{re: re}, nil
 }
 
+// match reports whether the normalized repository matches the whole glob.
 func (g glob) match(repo string) bool { return g.re.MatchString(repo) }
 
+// lastSegment is the part of s after its last "/", where a tag would sit;
+// a ":" earlier is a registry port.
 func lastSegment(s string) string {
 	if i := strings.LastIndex(s, "/"); i >= 0 {
 		return s[i+1:]

@@ -38,8 +38,11 @@ type Logger struct {
 	enc *json.Encoder
 }
 
+// New returns a Logger writing JSON lines to w.
 func New(w io.Writer) *Logger { return &Logger{enc: json.NewEncoder(w)} }
 
+// Log writes r as one line, stamping TS (UTC, millisecond precision) when
+// unset. It is safe for concurrent use.
 func (l *Logger) Log(r Record) {
 	if r.TS.IsZero() {
 		r.TS = time.Now().UTC()
