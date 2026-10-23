@@ -162,6 +162,22 @@ changelog:
   sort: asc
   filters:
     exclude: ["^docs:", "^test:", "^ci:", "Merge pull request"]
+  # Conventional Commit types (CONTRIBUTING.md); anything else is "Other".
+  groups:
+    - title: Security
+      regexp: '^.*?(fix|feat)\(security\)!?:.+$'
+      order: 0
+    - title: Features
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 1
+    - title: Bug fixes
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 2
+    - title: Dependencies
+      regexp: '^.*?build(\(deps\))??!?:.+$'
+      order: 3
+    - title: Other
+      order: 999
 
 release:
   github:
