@@ -78,6 +78,12 @@ func LooksLikeID(s string) bool {
 	return true
 }
 
+// isHost reports whether a lowercase first path component is parsed as a
+// registry host, mirroring distribution/reference's splitDockerDomain.
+func isHost(s string) bool {
+	return strings.ContainsAny(s, ".:") || s == "localhost"
+}
+
 // dockerHubAliases are hostnames that serve Docker Hub.
 var dockerHubAliases = map[string]bool{
 	"docker.io": true, "index.docker.io": true, "registry-1.docker.io": true, "registry.hub.docker.com": true,
@@ -86,12 +92,21 @@ var dockerHubAliases = map[string]bool{
 // canonicalRepo gives every spelling of a repository one form, so policy
 // globs cannot be sidestepped: hostnames are case-insensitive, :443 is the
 // default HTTPS port, and Docker Hub has several hostnames.
+//
+// The form must still name the same registry when parsed again. A first
+// component is only a host when it has a "." or ":", is "localhost", or has
+// an uppercase letter, so lowercasing "A/x" or stripping "registry:443/x"
+// would turn a private registry into a Docker Hub repository. Such hosts
+// keep an explicit :443, the same endpoint.
 func canonicalRepo(name string) string {
 	host, path, ok := strings.Cut(name, "/")
 	if !ok {
 		return name
 	}
 	host = strings.TrimSuffix(strings.ToLower(host), ":443")
+	if !isHost(host) {
+		host += ":443"
+	}
 	if dockerHubAliases[host] {
 		host = "docker.io"
 		if !strings.Contains(path, "/") {
