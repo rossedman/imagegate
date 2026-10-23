@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 // glob matches a normalized repository. "*" and "?" stop at "/", "**"
@@ -18,24 +19,31 @@ func compileGlob(pattern string) (glob, error) {
 	if pattern == "" {
 		return glob{}, fmt.Errorf("empty image glob")
 	}
+	// YAML documents are UTF-8, so this only guards direct callers.
+	if !utf8.ValidString(pattern) {
+		return glob{}, fmt.Errorf("image glob %q is not valid UTF-8", pattern)
+	}
 	if strings.ContainsAny(pattern, "@") || strings.Contains(lastSegment(pattern), ":") {
 		return glob{}, fmt.Errorf("image glob %q must not include a tag or digest; verification is by digest", pattern)
 	}
 	var b strings.Builder
 	b.WriteString("^")
-	for i := 0; i < len(pattern); i++ {
-		c := pattern[i]
+	for i := 0; i < len(pattern); {
+		// Quote whole runes: string(pattern[i]) would re-encode each byte
+		// of a multi-byte rune as its own rune.
+		r, size := utf8.DecodeRuneInString(pattern[i:])
 		switch {
-		case c == '*' && i+1 < len(pattern) && pattern[i+1] == '*':
+		case r == '*' && strings.HasPrefix(pattern[i:], "**"):
 			b.WriteString(".*")
-			i++
-		case c == '*':
+			size = 2
+		case r == '*':
 			b.WriteString("[^/]*")
-		case c == '?':
+		case r == '?':
 			b.WriteString("[^/]")
 		default:
-			b.WriteString(regexp.QuoteMeta(string(c)))
+			b.WriteString(regexp.QuoteMeta(pattern[i : i+size]))
 		}
+		i += size
 	}
 	b.WriteString("$")
 	re, err := regexp.Compile(b.String())
