@@ -1,0 +1,34 @@
+version: 1
+scanners:
+  # Same linter CI runs (.github/workflows/ci.yml); uses .golangci.yml once
+  # one exists, golangci-lint's defaults until then.
+  - name: golangci-lint
+    command: ["golangci-lint", "run", "--output.sarif.path={out}", "./..."]
+    workdir: "{dir}"
+  # Misconfiguration in packaging/Dockerfile, deploy/ and workflows.
+  - name: trivy
+    match: ["Trivy"]
+    command: ["trivy", "config", "--quiet", "--format", "sarif", "-o", "{out}", "{dir}"]
+  # Code patterns golangci-lint doesn't cover (p/default fetches the rules
+  # from the Semgrep registry, so it needs network).
+  - name: semgrep
+    match: ["Semgrep OSS", "Semgrep"]
+    command: ["semgrep", "scan", "--quiet", "--metrics=off", "--config", "p/default", "--sarif-output={out}", "{dir}"]
+    timeout: 10m
+rules:
+  min_level: error
+  # Only these become issues in the GitHub Action; the Stop hook ignores
+  # allow and reports everything not denied.
+  allow: ["golangci-lint/*"]  # trivy and semgrep: code scanning only, for now
+  deny:
+    # The image runs as root by design: it needs the dockerd socket and
+    # creates the plugin socket (see packaging/Dockerfile).
+    - "trivy/DS-0002"
+    - "semgrep/dockerfile.security.missing-user.missing-user"
+    - "semgrep/dockerfile.security.missing-user-entrypoint.missing-user-entrypoint"
+    # http:// URLs here are dialed over Unix sockets (health, admin client).
+    - "semgrep/problem-based-packs.insecure-transport.go-stdlib.http-request.http-request"
+    # docs/tools/contrast-check.cjs only visits the local docs server.
+    - "semgrep/javascript.playwright.security.audit.playwright-goto-injection.playwright-goto-injection"
+paths:
+  deny: ["**/testdata/**", "site/**", "dist/**"]
