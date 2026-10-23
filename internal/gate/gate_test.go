@@ -54,7 +54,8 @@ type fakeDocker struct {
 	mu         sync.Mutex
 	images     map[string]*docker.Image
 	containers map[string]*docker.Container
-	err        error
+	err        error // returned by InspectImage
+	ctErr      error // returned by InspectContainer
 }
 
 func (f *fakeDocker) InspectImage(_ context.Context, ref string) (*docker.Image, error) {
@@ -83,6 +84,9 @@ func (f *fakeDocker) InspectImage(_ context.Context, ref string) (*docker.Image,
 func (f *fakeDocker) InspectContainer(_ context.Context, id string) (*docker.Container, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.ctErr != nil {
+		return nil, f.ctErr
+	}
 	if c, ok := f.containers[id]; ok {
 		return c, nil
 	}
@@ -119,7 +123,7 @@ type harness struct {
 	now    time.Time
 }
 
-func newHarness(t *testing.T, mode string, failClosed bool, local string) *harness {
+func newHarness(t testing.TB, mode string, failClosed bool, local string) *harness {
 	t.Helper()
 	dir := t.TempDir()
 	h := &harness{
@@ -148,7 +152,11 @@ func newHarness(t *testing.T, mode string, failClosed bool, local string) *harne
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { c.Close() })
+	t.Cleanup(func() {
+		if err := c.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	c.SetClock(func() time.Time { return h.now })
 	h.g = New(Config{
 		PolicyPath:   filepath.Join(dir, "policy.yaml"),
@@ -168,7 +176,7 @@ func newHarness(t *testing.T, mode string, failClosed bool, local string) *harne
 	return h
 }
 
-func (h *harness) writePolicy(t *testing.T, doc string) {
+func (h *harness) writePolicy(t testing.TB, doc string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(h.dir, "policy.yaml"), []byte(doc), 0o644); err != nil {
 		t.Fatal(err)
@@ -180,7 +188,7 @@ func (h *harness) create(image string) Decision {
 	return h.g.Create(context.Background(), "", body, url.Values{})
 }
 
-func (h *harness) lastAudit(t *testing.T) audit.Record {
+func (h *harness) lastAudit(t testing.TB) audit.Record {
 	t.Helper()
 	lines := strings.Split(strings.TrimSpace(h.audit.String()), "\n")
 	var r audit.Record
@@ -259,13 +267,17 @@ func TestCacheAndPolicyChange(t *testing.T) {
 	}
 	// A policy change invalidates old verdicts.
 	h.writePolicy(t, strings.Replace(fmt.Sprintf(basePolicy, "enforce", true, "deny"), "helpURL", "# changed\n  helpURL", 1)+"  # trailing comment\n")
-	h.g.ReloadPolicy()
+	if err := h.g.ReloadPolicy(); err != nil {
+		t.Fatal(err)
+	}
 	h.create("ghcr.io/acme/api:1")
 	if n := h.ver.calls.Load(); n != 1 {
 		t.Errorf("comment-only change re-verified (%d)", n)
 	}
 	h.writePolicy(t, strings.Replace(fmt.Sprintf(basePolicy, "enforce", true, "deny"), "release.yml", "release.yaml", 1))
-	h.g.ReloadPolicy()
+	if err := h.g.ReloadPolicy(); err != nil {
+		t.Fatal(err)
+	}
 	h.create("ghcr.io/acme/api:1")
 	if n := h.ver.calls.Load(); n != 2 {
 		t.Errorf("policy change did not re-verify (%d)", n)
@@ -300,8 +312,13 @@ func TestInvalidReloadKeepsLastGood(t *testing.T) {
 
 func TestNoPolicyAtBoot(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "policy.yaml"), []byte("rules: ["), 0o644)
-	c, _ := cache.Open("", 10)
+	if err := os.WriteFile(filepath.Join(dir, "policy.yaml"), []byte("rules: ["), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c, err := cache.Open("", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
 	g := New(Config{
 		PolicyPath: filepath.Join(dir, "policy.yaml"), OverridesDir: dir, Docker: &fakeDocker{},
 		Compile: func(*policy.Policy) (Verifier, error) { return &fakeVerifier{}, nil },
@@ -334,10 +351,15 @@ func TestAuditMode(t *testing.T) {
 
 func TestOverrides(t *testing.T) {
 	h := newHarness(t, "enforce", true, "deny")
-	os.MkdirAll(filepath.Join(h.dir, "overrides.d"), 0o755)
+	if err := os.MkdirAll(filepath.Join(h.dir, "overrides.d"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	write := func(expires time.Time) {
-		os.WriteFile(filepath.Join(h.dir, "overrides.d", "inc.yaml"), []byte(fmt.Sprintf(
-			"- digest: %s\n  expires: %s\n  ticket: INC-4821\n  reason: vendor hotfix\n", digestB, expires.UTC().Format(time.RFC3339))), 0o644)
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(h.dir, "overrides.d", "inc.yaml"), []byte(fmt.Sprintf(
+			"- digest: %s\n  expires: %s\n  ticket: INC-4821\n  reason: vendor hotfix\n", digestB, expires.UTC().Format(time.RFC3339))), 0o644); err != nil {
+			t.Fatal(err)
+		}
 		h.g.ReloadOverrides()
 	}
 
@@ -490,13 +512,14 @@ func TestPickDigest(t *testing.T) {
 // BenchmarkCreateCacheHit measures imagegate's own overhead on the hot path
 // (excluding dockerd's image inspect, which is faked).
 func BenchmarkCreateCacheHit(b *testing.B) {
-	t := &testing.T{}
-	h := newHarness(t, "enforce", true, "deny")
+	h := newHarness(b, "enforce", true, "deny")
 	h.g.cfg.Audit = audit.New(io.Discard)
 	body := []byte(`{"Image":"ghcr.io/acme/api:1"}`)
-	h.g.Create(context.Background(), "", body, nil)
-	b.ResetTimer()
-	for range b.N {
+	if d := h.g.Create(context.Background(), "", body, nil); !d.Allow {
+		b.Fatal(d.Msg)
+	}
+	b.ReportAllocs()
+	for b.Loop() {
 		if d := h.g.Create(context.Background(), "", body, nil); !d.Allow {
 			b.Fatal(d.Msg)
 		}
@@ -520,9 +543,7 @@ func TestLocalImageFromVerifier(t *testing.T) {
 type panicVerifier struct{}
 
 func (panicVerifier) Verify(context.Context, verify.Target, *policy.Rule) verify.Result {
-	var m map[string]int
-	m["boom"]++ // nil map write: panics
-	return verify.Result{}
+	panic("boom")
 }
 
 // A panic while verifying (registry-controlled input) must deny, not crash
@@ -530,7 +551,9 @@ func (panicVerifier) Verify(context.Context, verify.Target, *policy.Rule) verify
 func TestVerifyPanic(t *testing.T) {
 	h := newHarness(t, "enforce", true, "deny")
 	h.g.cfg.Compile = func(*policy.Policy) (Verifier, error) { return panicVerifier{}, nil }
-	h.g.ReloadPolicy()
+	if err := h.g.ReloadPolicy(); err != nil {
+		t.Fatal(err)
+	}
 	if d := h.create("ghcr.io/acme/api:1"); d.Allow || !strings.Contains(d.Msg, "internal error") {
 		t.Errorf("got %+v", d)
 	}
