@@ -1,0 +1,5 @@
+{
+  "env": {
+    "SARIFIX_BASE": "origin/main"
+  }
+}

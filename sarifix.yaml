@@ -1,0 +1,15 @@
+version: 1
+scanners:
+  # Same linter CI runs (.github/workflows/ci.yml); uses .golangci.yml once
+  # one exists, golangci-lint's defaults until then.
+  - name: golangci-lint
+    command: ["golangci-lint", "run", "--output.sarif.path={out}", "./..."]
+    workdir: "{dir}"
+rules:
+  min_level: error
+  # Only these become issues in the GitHub Action; the Stop hook ignores
+  # allow and reports everything not denied.
+  allow: ["golangci-lint/*"]
+  deny: []
+paths:
+  deny: ["**/testdata/**", "site/**", "dist/**"]
