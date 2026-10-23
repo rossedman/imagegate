@@ -99,7 +99,12 @@ cosign verify ghcr.io/rossedman/imagegate:0.1.0 \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
-Every archive and package also has an SPDX SBOM (`*.sbom.json`).
+Every archive and package also has an SPDX SBOM (`*.sbom.json`) and a SLSA
+build provenance attestation:
+
+```sh
+gh attestation verify imagegate_0.1.0_linux_amd64.tar.gz --repo rossedman/imagegate
+```
 
 ### Container image
 

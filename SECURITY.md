@@ -31,6 +31,34 @@ include users who already have full Docker API access using
 `--privileged`, Swarm services, builds or plugins, and anyone with root on
 the host.
 
+## Verifying releases
+
+Release checksums and container images are signed keylessly with Sigstore
+by the release workflow; there are no long-lived signing keys. Verify the
+checksums file, then the files you downloaded against it:
+
+```sh
+cosign verify-blob checksums.txt \
+  --bundle checksums.txt.sigstore.json \
+  --certificate-identity-regexp '^https://github.com/rossedman/imagegate/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+sha256sum --ignore-missing -c checksums.txt
+```
+
+Container images:
+
+```sh
+cosign verify ghcr.io/rossedman/imagegate:<version> \
+  --certificate-identity-regexp '^https://github.com/rossedman/imagegate/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+Every release asset also has a SLSA build provenance attestation:
+
+```sh
+gh attestation verify imagegate_<version>_linux_amd64.tar.gz --repo rossedman/imagegate
+```
+
 ## Supported versions
 
 Security fixes are released for the latest minor version.
