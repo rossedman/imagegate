@@ -74,6 +74,8 @@ type Engine struct {
 	nameOpts []name.Option
 }
 
+// NewEngine returns an Engine, defaulting to the default keychain and
+// transport and to an empty trust source that fails keyless verification.
 func NewEngine(o Options) *Engine {
 	if o.Keychain == nil {
 		o.Keychain = authn.DefaultKeychain
@@ -91,6 +93,8 @@ func NewEngine(o Options) *Engine {
 	}
 }
 
+// identity is a compiled policy identity: a keyless certificate identity or
+// a public key.
 type identity struct {
 	name    string
 	keyless *sgverify.CertificateIdentity
@@ -129,6 +133,7 @@ func (e *Engine) Compile(p *policy.Policy) (*Verifier, error) {
 	return v, errors.Join(errs...)
 }
 
+// loadKey reads a PEM public key file and returns a verifier for it.
 func loadKey(path string) (signature.Verifier, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -307,6 +312,8 @@ func (c candidate) predicateType() (string, bool) {
 	return st.GetPredicateType(), true
 }
 
+// verifyOne verifies candidate c against identity id, then checks that what
+// was verified is what want accepts.
 func (v *Verifier) verifyOne(c candidate, id identity, want func(string) bool) error {
 	sv, pol, err := v.verifierFor(c, id)
 	if err != nil {
@@ -319,6 +326,9 @@ func (v *Verifier) verifyOne(c candidate, id identity, want func(string) bool) e
 	return postCheck(c, res, want)
 }
 
+// postCheck checks the verified content rather than the unverified bundle:
+// the simple-signing payload must name the subject digest, and a DSSE
+// statement must have a wanted predicate type.
 func postCheck(c candidate, res *sgverify.VerificationResult, want func(string) bool) error {
 	if c.payload != nil {
 		return checkSimpleSigning(c.payload, c.subject)
@@ -329,6 +339,8 @@ func postCheck(c candidate, res *sgverify.VerificationResult, want func(string) 
 	return nil
 }
 
+// artifact is the policy option binding verification to c's subject: the
+// simple-signing payload bytes, or the sha256 image digest.
 func (v *Verifier) artifact(c candidate) (sgverify.ArtifactPolicyOption, error) {
 	if c.payload != nil {
 		return sgverify.WithArtifact(bytes.NewReader(c.payload)), nil
@@ -344,6 +356,9 @@ func (v *Verifier) artifact(c candidate) (sgverify.ArtifactPolicyOption, error) 
 	return sgverify.WithArtifactDigest("sha256", raw), nil
 }
 
+// verifierFor builds the sigstore-go verifier and policy for c under id:
+// Fulcio and Rekor for keyless, the key itself (plus Rekor when the bundle
+// has a tlog entry) for keyed.
 func (v *Verifier) verifierFor(c candidate, id identity) (*sgverify.Verifier, sgverify.PolicyBuilder, error) {
 	art, err := v.artifact(c)
 	if err != nil {
@@ -374,6 +389,8 @@ func (v *Verifier) verifierFor(c candidate, id identity) (*sgverify.Verifier, sg
 	return sv, sgverify.NewPolicy(art, sgverify.WithKey()), err
 }
 
+// keylessOptions requires a tlog entry and an observer timestamp, plus an
+// SCT when the policy's requireSCT is set.
 func (v *Verifier) keylessOptions() []sgverify.VerifierOption {
 	opts := []sgverify.VerifierOption{sgverify.WithTransparencyLog(1), sgverify.WithObserverTimestamps(1)}
 	if v.requireSCT {
@@ -432,6 +449,7 @@ func predicateAllowed(pt string, allowed []string) bool {
 	return false
 }
 
+// quoteList formats identity names for a denial message.
 func quoteList(names []string) string {
 	q := make([]string, len(names))
 	for i, n := range names {
@@ -440,6 +458,7 @@ func quoteList(names []string) string {
 	return "identity " + strings.Join(q, ", ")
 }
 
+// oneLine flattens err to one line of at most 300 bytes for a denial message.
 func oneLine(err error) string {
 	s := strings.ReplaceAll(err.Error(), "\n", " ")
 	if len(s) > 300 {

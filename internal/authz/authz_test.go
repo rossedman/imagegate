@@ -76,7 +76,7 @@ func call(t *testing.T, h http.Handler, path string, body any) Response {
 	t.Helper()
 	raw, _ := json.Marshal(body)
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest("POST", path, bytes.NewReader(raw)))
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, path, bytes.NewReader(raw)))
 	var resp Response
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("%s: %v: %s", path, err, rec.Body.String())
@@ -89,7 +89,7 @@ func TestHandler(t *testing.T) {
 	h := &Handler{Gate: g, Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
 
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest("POST", "/Plugin.Activate", nil))
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/Plugin.Activate", nil))
 	if rec.Body.String() != `{"Implements":["authz"]}`+"\n" {
 		t.Errorf("activate = %s", rec.Body.String())
 	}
@@ -121,9 +121,11 @@ func TestUnreadableRequest(t *testing.T) {
 		`{"RequestUri": "/containers/create", "RequestBody": 5}`: false,
 	} {
 		rec := httptest.NewRecorder()
-		h.ServeHTTP(rec, httptest.NewRequest("POST", "/AuthZPlugin.AuthZReq", bytes.NewBufferString(body)))
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/AuthZPlugin.AuthZReq", bytes.NewBufferString(body)))
 		var r Response
-		json.Unmarshal(rec.Body.Bytes(), &r)
+		if err := json.Unmarshal(rec.Body.Bytes(), &r); err != nil {
+			t.Fatalf("%s: %v", body, err)
+		}
 		if r.Allow != allow {
 			t.Errorf("%s: allow = %v", body, r.Allow)
 		}

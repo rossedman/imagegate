@@ -8,6 +8,19 @@ uses [semantic versioning](https://semver.org/).
 
 ### Fixed
 
+- Repository normalization no longer turns a dotless registry host into a
+  Docker Hub path. `registry:443/app` and `REGISTRY/app` were normalized to
+  `registry/app`, which reads as `docker.io/registry/app`: rules for that
+  Docker Hub repository applied, and signatures were fetched from Docker
+  Hub, while dockerd pulled from the private registry. Both now normalize
+  to `registry:443/app`.
+- Image globs with multi-byte characters (`ghcr.io/café`) never matched,
+  because each byte was quoted as its own character. Such globs could only
+  cause `NO_RULE` denials.
+- Go 1.27.3, golang.org/x/net 0.60.0 and grpc 1.83.1: fixes 13 reachable
+  vulnerabilities reported by govulncheck in the standard library and
+  dependencies.
+
 - Docs site: code punctuation, plain values and console output rendered
   near-black on the dark code background, and several greys in the light
   scheme fell below WCAG AA. All text now meets AA in both schemes;

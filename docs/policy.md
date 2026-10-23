@@ -91,7 +91,10 @@ Globs match the normalized repository: no tag, no digest.
 `*` and `?` stop at `/`; `**` crosses it. Repositories are normalized first:
 `nginx` is `docker.io/library/nginx`, hostnames are lower-cased, `:443` is
 dropped, and `registry-1.docker.io` and `index.docker.io` become
-`docker.io`.
+`docker.io`. A host without a `.` (other than `localhost`) keeps `:443`
+instead, because dropping it would name a Docker Hub repository:
+`registry:443/app` and `REGISTRY/app` are both `registry:443/app`, while
+`registry/app` is `docker.io/registry/app`.
 
 ### Predicate types
 

@@ -183,7 +183,10 @@ identities:
 
 // policyHash ignores comments and formatting but changes with content.
 func TestHash(t *testing.T) {
-	a, _ := Parse([]byte(specExample))
+	a, err := Parse([]byte(specExample))
+	if err != nil {
+		t.Fatal(err)
+	}
 	reformatted := strings.ReplaceAll(specExample, "            # enforce | audit", "")
 	reformatted = strings.ReplaceAll(reformatted, "\n\n", "\n")
 	b, err := Parse([]byte(reformatted))
@@ -193,7 +196,10 @@ func TestHash(t *testing.T) {
 	if a.Hash != b.Hash {
 		t.Error("comments/whitespace changed the hash")
 	}
-	c, _ := Parse([]byte(strings.Replace(specExample, "denyTTL: 60s", "denyTTL: 30s", 1)))
+	c, err := Parse([]byte(strings.Replace(specExample, "denyTTL: 60s", "denyTTL: 30s", 1)))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if a.Hash == c.Hash {
 		t.Error("content change did not change the hash")
 	}
@@ -258,21 +264,29 @@ func TestOverrides(t *testing.T) {
 
 // Replacing a public key at the same path changes the policy hash.
 func TestHashIncludesKeyFiles(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	key := filepath.Join(dir, "k.pub")
 	pol := filepath.Join(dir, "policy.yaml")
-	os.WriteFile(key, []byte("key one"), 0o644)
-	os.WriteFile(pol, []byte("apiVersion: imagegate.dev/v1\nidentities: {k: {publicKey: "+key+"}}\nrules: [{name: r, images: [x], signature: {identities: [k]}, sbom: {required: false}}]\n"), 0o644)
+	mustWrite(t, key, "key one")
+	mustWrite(t, pol, "apiVersion: imagegate.dev/v1\nidentities: {k: {publicKey: "+key+"}}\nrules: [{name: r, images: [x], signature: {identities: [k]}, sbom: {required: false}}]\n")
 	a, err := Load(pol)
 	if err != nil {
 		t.Fatal(err)
 	}
-	os.WriteFile(key, []byte("key two"), 0o644)
+	mustWrite(t, key, "key two")
 	b, err := Load(pol)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if a.Hash == b.Hash {
 		t.Error("key rotation at the same path did not change the hash")
+	}
+}
+
+func mustWrite(t testing.TB, path, body string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
 	}
 }

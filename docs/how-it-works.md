@@ -59,8 +59,9 @@ sequenceDiagram
 1. **Parse.** Read `Image` from the request body. A malformed body is denied
    with `BAD_REQUEST`.
 2. **Normalize.** `nginx` becomes `docker.io/library/nginx:latest`. Registry
-   hostnames are lower-cased, `:443` is dropped and Docker Hub aliases fold
-   into `docker.io`.
+   hostnames are lower-cased, `:443` is dropped (kept on dotless hosts such
+   as `registry:443`, which would otherwise read as Docker Hub) and Docker
+   Hub aliases fold into `docker.io`.
 3. **Resolve the digest.** Ask dockerd for the image. A reference pinned
    with `@sha256:` uses that digest; otherwise the RepoDigests entry for the
    same repository. If dockerd does not have the image yet, the create is

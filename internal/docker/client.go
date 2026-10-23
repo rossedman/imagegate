@@ -44,7 +44,7 @@ type Client struct {
 	http *http.Client
 }
 
-// New returns a client for the dockerd socket at path.
+// New returns a client for the dockerd socket at socket.
 func New(socket string) *Client {
 	tr := &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
@@ -76,6 +76,8 @@ func (c *Client) InspectContainer(ctx context.Context, id string) (*Container, e
 	return &ct, nil
 }
 
+// get decodes a 200 JSON response from path into out. 404 is ErrNotFound;
+// other statuses are errors carrying a bounded slice of the body.
 func (c *Client) get(ctx context.Context, path string, out any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://docker"+path, nil)
 	if err != nil {
@@ -85,9 +87,9 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 	if err != nil {
 		return fmt.Errorf("dockerd: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusNotFound {
-		io.Copy(io.Discard, resp.Body)
+		_, _ = io.Copy(io.Discard, resp.Body) // drain so the connection is reused
 		return ErrNotFound
 	}
 	if resp.StatusCode != http.StatusOK {

@@ -63,6 +63,8 @@ type Decision struct {
 	Msg   string
 }
 
+// state is one loaded policy and the verifier compiled from it, swapped
+// atomically so a request always sees a matching pair.
 type state struct {
 	policy   *policy.Policy
 	verifier Verifier
@@ -76,6 +78,8 @@ type Gate struct {
 	sf        singleflight.Group
 }
 
+// New returns a Gate with no policy loaded; call ReloadPolicy before use.
+// Until a policy loads, gated requests are denied with NO_POLICY.
 func New(cfg Config) *Gate {
 	if cfg.Now == nil {
 		cfg.Now = time.Now
@@ -276,6 +280,7 @@ func (g *Gate) evaluate(ctx context.Context, st *state, in input) Decision {
 	return d
 }
 
+// evaluateVerdict is evaluate that also returns the verdict, for Warm.
 func (g *Gate) evaluateVerdict(ctx context.Context, st *state, in input) (Decision, verdict.Verdict) {
 	now := g.cfg.Now()
 	if ov, ok := g.overrides.Load().Lookup(in.digest, now); ok {
@@ -356,6 +361,7 @@ func (g *Gate) early(st *state, in input, r verdict.Reason, detail string) Decis
 	return g.finish(st, in, verdict.Verdict{Reason: r, Detail: detail}, "")
 }
 
+// noPolicy denies, always enforced, because no valid policy has loaded.
 func (g *Gate) noPolicy(endpoint, user string) Decision {
 	v := verdict.Verdict{Reason: verdict.NoPolicy, Detail: "no valid policy is loaded"}
 	g.cfg.Metrics.Decisions.WithLabelValues("deny", string(v.Reason), "", string(policy.ModeEnforce)).Inc()
@@ -366,6 +372,7 @@ func (g *Gate) noPolicy(endpoint, user string) Decision {
 	return Decision{Msg: verdict.Message("container", v.Reason, v.Detail, "")}
 }
 
+// finishOverride records an override allow with its ticket at high severity.
 func (g *Gate) finishOverride(st *state, in input, v verdict.Verdict, ov policy.Override) Decision {
 	return g.record(st, in, v, "", func(r *audit.Record) {
 		r.Ticket = ov.Ticket
@@ -373,6 +380,7 @@ func (g *Gate) finishOverride(st *state, in input, v verdict.Verdict, ov policy.
 	})
 }
 
+// finish records v with the cache result (hit, miss or empty).
 func (g *Gate) finish(st *state, in input, v verdict.Verdict, cacheResult string) Decision {
 	return g.record(st, in, v, cacheResult, nil)
 }
@@ -381,10 +389,8 @@ func (g *Gate) finish(st *state, in input, v verdict.Verdict, cacheResult string
 // downgrade denials to logged-only. Every decision is audited and counted.
 func (g *Gate) record(st *state, in input, v verdict.Verdict, cacheResult string, extra func(*audit.Record)) Decision {
 	p := st.policy
-	enforced := true
-	if !v.Allow && v.Reason.Transient() && !p.FailClosed() {
-		enforced = false
-	}
+	// failClosed: false lets transient denials through.
+	enforced := v.Allow || !v.Reason.Transient() || p.FailClosed()
 	if !v.Allow && p.Mode == policy.ModeAudit {
 		enforced = false
 	}
@@ -443,6 +449,7 @@ func (g *Gate) Warm(ctx context.Context, ref string) (verdict.Verdict, string, e
 // PurgeCache drops cached verdicts, all or for one digest.
 func (g *Gate) PurgeCache(digest string) (int, error) { return g.cfg.Cache.Purge(digest) }
 
+// latencyMs is the time since start in milliseconds, or 0 when unset.
 func latencyMs(start time.Time) int64 {
 	if start.IsZero() {
 		return 0

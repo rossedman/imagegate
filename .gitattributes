@@ -1,0 +1,9 @@
+* text=auto eol=lf
+
+*.png binary
+*.ico binary
+
+# Generated or vendored content: collapse in diffs, skip in language stats.
+go.sum linguist-generated=true
+# Written by docs/assets/make_diagrams.py.
+docs/assets/diagram-*.svg linguist-generated=true

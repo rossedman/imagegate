@@ -11,6 +11,8 @@ import (
 // Reason is a stable code shown in denials, audit records and metrics.
 type Reason string
 
+// Reason codes. These strings are a public contract: they appear in denial
+// messages, audit records, metrics and runbook anchors. Never rename them.
 const (
 	Allowed             Reason = "ALLOWED"
 	Override            Reason = "OVERRIDE"
