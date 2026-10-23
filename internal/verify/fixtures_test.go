@@ -14,10 +14,12 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/go-containerregistry/pkg/name"
@@ -54,16 +56,41 @@ const (
 // world is a registry plus a virtual Sigstore (Fulcio, Rekor, TSA, CT) and
 // a signing key, for building signed image fixtures.
 type world struct {
-	t       *testing.T
+	t       testing.TB
 	host    string
 	vs      *ca.VirtualSigstore
 	key     *ecdsa.PrivateKey
 	keyPath string
+
+	mu sync.Mutex
+	// fault, when set, may answer a registry request with an HTTP
+	// status instead of the registry (0 passes it through).
+	fault func(*http.Request) int
 }
 
-func newWorld(t *testing.T) *world {
+// setFault installs a registry fault injector; nil removes it.
+func (w *world) setFault(f func(*http.Request) int) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.fault = f
+}
+
+func newWorld(t testing.TB) *world {
 	t.Helper()
-	srv := httptest.NewServer(ocireg.New(ocireg.WithReferrersSupport(true), ocireg.Logger(log.New(io.Discard, "", 0))))
+	w := &world{t: t}
+	reg := ocireg.New(ocireg.WithReferrersSupport(true), ocireg.Logger(log.New(io.Discard, "", 0)))
+	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		w.mu.Lock()
+		f := w.fault
+		w.mu.Unlock()
+		if f != nil {
+			if code := f(r); code != 0 {
+				http.Error(rw, http.StatusText(code), code)
+				return
+			}
+		}
+		reg.ServeHTTP(rw, r)
+	}))
 	t.Cleanup(srv.Close)
 	vs, err := ca.NewVirtualSigstore()
 	if err != nil {
@@ -81,7 +108,8 @@ func newWorld(t *testing.T) *world {
 	if err := os.WriteFile(keyPath, pubPEM, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	return &world{t: t, host: strings.TrimPrefix(srv.URL, "http://"), vs: vs, key: key, keyPath: keyPath}
+	w.host, w.vs, w.key, w.keyPath = strings.TrimPrefix(srv.URL, "http://"), vs, key, keyPath
+	return w
 }
 
 func (w *world) engine() *Engine {
@@ -118,6 +146,16 @@ func (w *world) pushImage(r string) string {
 // index digest and the amd64 child digest.
 func (w *world) pushIndex(r string, buildkitSBOM bool) (string, string) {
 	w.t.Helper()
+	if buildkitSBOM {
+		return w.pushIndexAtt(r, spdxType)
+	}
+	return w.pushIndexAtt(r, "")
+}
+
+// pushIndexAtt is pushIndex with a BuildKit attestation manifest whose
+// layer has predicate type attPredicate ("" for no attestation manifest).
+func (w *world) pushIndexAtt(r, attPredicate string) (string, string) {
+	w.t.Helper()
 	idx := mutate.IndexMediaType(empty.Index, types.OCIImageIndex)
 	var amd64 string
 	for _, arch := range []string{"amd64", "arm64"} {
@@ -132,12 +170,12 @@ func (w *world) pushIndex(r string, buildkitSBOM bool) (string, string) {
 			Platform: &v1.Platform{OS: "linux", Architecture: arch},
 		}})
 	}
-	if buildkitSBOM {
+	if attPredicate != "" {
 		att := mutate.MediaType(empty.Image, types.OCIManifestSchema1)
 		att = mutate.ConfigMediaType(att, types.OCIConfigJSON)
 		layer := static.NewLayer([]byte(`{"_type":"https://in-toto.io/Statement/v0.1"}`), "application/vnd.in-toto+json")
 		att, _ = mutate.Append(att, mutate.Addendum{Layer: layer, Annotations: map[string]string{
-			"in-toto.io/predicate-type": spdxType,
+			"in-toto.io/predicate-type": attPredicate,
 		}})
 		idx = mutate.AppendManifests(idx, mutate.IndexAddendum{Add: att, Descriptor: v1.Descriptor{
 			Platform: &v1.Platform{OS: "unknown", Architecture: "unknown"},
@@ -215,7 +253,7 @@ func (w *world) keyedDSSE(digest, predicateType string, key *ecdsa.PrivateKey) [
 	return marshalBundle(w.t, pb)
 }
 
-func toProtoEnvelope(t *testing.T, env *dsselib.Envelope) *protodsse.Envelope {
+func toProtoEnvelope(t testing.TB, env *dsselib.Envelope) *protodsse.Envelope {
 	payload, err := base64.StdEncoding.DecodeString(env.Payload)
 	if err != nil {
 		t.Fatal(err)
@@ -231,7 +269,7 @@ func toProtoEnvelope(t *testing.T, env *dsselib.Envelope) *protodsse.Envelope {
 	return out
 }
 
-func marshalBundle(t *testing.T, pb *protobundle.Bundle) []byte {
+func marshalBundle(t testing.TB, pb *protobundle.Bundle) []byte {
 	b, err := bundle.NewBundle(pb)
 	if err != nil {
 		t.Fatal(err)

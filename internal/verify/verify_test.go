@@ -211,6 +211,67 @@ func TestMatrix(t *testing.T) {
 			want: verdict.NoSignature,
 		},
 		{
+			name: "malformed bundle referrers alongside a valid signature",
+			setup: func() (string, string) {
+				d := w.pushImage("acme/junk")
+				w.attachArtifact("acme/junk", d, bundleType, []byte("not a bundle"))
+				w.attachArtifact("acme/junk", d, bundleType)
+				sign("acme/junk", d)
+				w.attachBundle("acme/junk", d, w.keylessDSSE(ciMainSAN, d, spdxType))
+				return "acme/junk", d
+			},
+			want: verdict.Allowed, signer: "ci-main",
+		},
+		{
+			name: "keyed signature where the rule requires keyless",
+			setup: func() (string, string) {
+				d := w.pushImage("acme/keyedsig")
+				w.attachBundle("acme/keyedsig", d, w.keyedDSSE(d, CosignSignPredicate, w.key))
+				return "acme/keyedsig", d
+			},
+			want: verdict.IdentityMismatch, detail: "rule requires a keyless identity",
+		},
+		{
+			name: "attestation with another predicate is not an SBOM",
+			setup: func() (string, string) {
+				d := w.pushImage("acme/slsa")
+				sign("acme/slsa", d)
+				w.attachBundle("acme/slsa", d, w.keylessDSSE(ciMainSAN, d, "https://slsa.dev/provenance/v1"))
+				return "acme/slsa", d
+			},
+			want: verdict.NoSBOM,
+		},
+		{
+			name: "SBOM attestation for another digest",
+			setup: func() (string, string) {
+				d := w.pushImage("acme/sbomother")
+				other := w.pushImage("acme/sbomother-x")
+				sign("acme/sbomother", d)
+				w.attachBundle("acme/sbomother", d, w.keylessDSSE(ciMainSAN, other, spdxType))
+				return "acme/sbomother", d
+			},
+			want: verdict.SBOMUntrusted, detail: "not signed by an allowed identity",
+		},
+		{
+			name: "BuildKit attestation without an SBOM",
+			setup: func() (string, string) {
+				d, _ := w.pushIndexAtt("acme/bkprov", "https://slsa.dev/provenance/v1")
+				sign("acme/bkprov", d)
+				return "acme/bkprov", d
+			},
+			want: verdict.NoSBOM,
+		},
+		{
+			name: "signed index whose BuildKit SBOM is only an annotation on a child",
+			setup: func() (string, string) {
+				d, child := w.pushIndex("acme/bkchild", true)
+				sign("acme/bkchild", child)
+				w.attachBundle("acme/bkchild", child, w.keylessDSSE(ciMainSAN, child, spdxType))
+				return "acme/bkchild", d
+			},
+			want: verdict.NoSignature,
+		},
+		{
 			name: "digest not in registry",
 			setup: func() (string, string) {
 				return "acme/missing", "sha256:" + strings.Repeat("ab", 32)
@@ -298,6 +359,39 @@ func TestLegacyLayout(t *testing.T) {
 			t.Fatalf("got %s: %s", got.Reason, got.Detail)
 		}
 	})
+	t.Run("unreadable layers skipped, valid keyed signature verifies", func(t *testing.T) {
+		d := w.pushImage("keyed/junk")
+		nosig := w.legacyKeyedSig(w.host+"/keyed/junk", d, w.key)
+		nosig.annotations = nil
+		w.pushLegacy("keyed/junk", d, ".sig",
+			legacyLayer{mediaType: "application/octet-stream", content: []byte("x")},
+			nosig,
+			legacyLayer{mediaType: dsseLayerType, content: []byte("{")},
+			w.legacyKeyedSig(w.host+"/keyed/junk", d, w.key),
+		)
+		w.pushLegacy("keyed/junk", d, ".att", w.legacyKeyedAtt(d, spdxType, w.key))
+		if got := run(t, w, p, "keyed/junk", d); got.Reason != verdict.Allowed || got.Signer != "ci-key" {
+			t.Fatalf("got %s %q: %s", got.Reason, got.Signer, got.Detail)
+		}
+	})
+	t.Run("keyed attestation by an unknown key", func(t *testing.T) {
+		d := w.pushImage("keyed/attother")
+		w.pushLegacy("keyed/attother", d, ".sig", w.legacyKeyedSig(w.host+"/keyed/attother", d, w.key))
+		w.pushLegacy("keyed/attother", d, ".att", w.legacyKeyedAtt(d, spdxType, other))
+		if got := run(t, w, p, "keyed/attother", d); got.Reason != verdict.SBOMUntrusted {
+			t.Fatalf("got %s: %s", got.Reason, got.Detail)
+		}
+	})
+	t.Run("only unsigned legacy layers", func(t *testing.T) {
+		d := w.pushImage("keyed/nosig")
+		l := w.legacyKeyedSig(w.host+"/keyed/nosig", d, w.key)
+		l.annotations = nil
+		w.pushLegacy("keyed/nosig", d, ".sig", l)
+		got := run(t, w, p, "keyed/nosig", d)
+		if got.Reason != verdict.NoSignature || !strings.Contains(got.Detail, "no cosign signature found") {
+			t.Fatalf("got %s: %s", got.Reason, got.Detail)
+		}
+	})
 	t.Run("sbom not required", func(t *testing.T) {
 		d := w.pushImage("vendor/agent")
 		w.attachBundle("vendor/agent", d, w.keyedDSSE(d, CosignSignPredicate, w.key))
@@ -342,9 +436,8 @@ func TestTimeout(t *testing.T) {
 	p := testPolicy(t, w, "")
 	d := w.pushImage("acme/slow")
 	v, _ := w.engine().Compile(p)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
 	defer cancel()
-	time.Sleep(time.Millisecond)
 	full := w.host + "/acme/slow"
 	if got := v.Verify(ctx, Target{Repo: full, Digest: d}, p.Match(full)); got.Reason != verdict.Timeout {
 		t.Fatalf("got %s: %s", got.Reason, got.Detail)
